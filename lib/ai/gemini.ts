@@ -34,7 +34,8 @@ function cleanJsonString(input: string): string {
 
 export class GeminiService {
   private getAI() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    return new GoogleGenAI({ apiKey });
   }
 
   /**

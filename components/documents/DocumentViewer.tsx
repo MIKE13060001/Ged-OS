@@ -1,141 +1,153 @@
+"use client";
 
-import React from 'react';
-import { X, FileText, Download, Share2, Trash2, Calendar, Database, HardDrive, ExternalLink, ShieldCheck } from 'lucide-react';
-import { Document } from '../../types/database';
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, Database, HardDrive, ShieldCheck } from "lucide-react";
+import { useDocumentStore } from "@/stores/documentStore";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
-interface DocumentViewerProps {
-  document: Document;
-  onClose: () => void;
-}
-
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onClose }) => {
-  const isImage = document.mimeType.startsWith('image/');
-
-  const handleOpenDirectly = () => {
-    if (document.previewUrl) {
-      window.open(document.previewUrl, '_blank', 'noopener,noreferrer');
-    }
-  };
+export function DocumentViewer() {
+  const { selectedDocument: doc, setSelectedDocument, removeDocument } = useDocumentStore();
+  const isImage = doc?.mimeType.startsWith("image/");
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-end bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div 
-        className="w-full max-w-2xl h-full bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out"
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-brand-primary/10 rounded-xl text-brand-primary shadow-inner">
-              <FileText size={24} />
-            </div>
-            <div className="overflow-hidden">
-              <h2 className="text-lg font-bold text-white truncate max-w-[300px]" title={document.name}>{document.name}</h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-800 px-1.5 py-0.5 rounded">v{document.version}</span>
-                <span className="text-[10px] text-brand-primary font-bold uppercase tracking-widest uppercase">{document.mimeType}</span>
-              </div>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 text-slate-500 hover:text-white bg-slate-800 rounded-full transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-900/20">
-          {/* Main Display Area */}
-          <div className="aspect-[4/3] w-full bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl relative flex flex-col items-center justify-center p-8 group">
-             {isImage ? (
-                <img 
-                  src={document.previewUrl} 
-                  alt={document.name} 
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform group-hover:scale-[1.02] duration-500"
-                />
-             ) : (
-                <div className="flex flex-col items-center text-center space-y-6 animate-in zoom-in duration-300">
-                  <div className="w-24 h-24 bg-brand-primary/10 rounded-3xl flex items-center justify-center text-brand-primary border border-brand-primary/20 shadow-inner">
-                    <FileText size={48} />
+    <Sheet open={!!doc} onOpenChange={(open) => !open && setSelectedDocument(null)}>
+      <SheetContent side="right" className="w-[580px] sm:max-w-[580px] p-0 flex flex-col">
+        {doc && (
+          <>
+            <SheetHeader className="px-6 py-4 border-b border-border bg-card/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
+                  <FileText size={22} />
+                </div>
+                <div className="overflow-hidden flex-1">
+                  <SheetTitle className="truncate text-base" title={doc.name}>{doc.name}</SheetTitle>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge variant="secondary" className="text-[10px] py-0">v{doc.version}</Badge>
+                    <span className="text-[10px] text-primary font-bold uppercase tracking-wider">{doc.mimeType}</span>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-white">Visualisation du Document</h3>
-                    <p className="text-slate-500 text-sm max-w-xs mx-auto">
-                      Par mesure de sécurité, ce document s'ouvre dans une fenêtre isolée pour garantir le chiffrement de bout en bout.
+                </div>
+              </div>
+            </SheetHeader>
+
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-6">
+                {/* Preview Area */}
+                <div className="aspect-[4/3] w-full bg-muted/30 rounded-2xl border border-border overflow-hidden relative flex flex-col items-center justify-center p-6 group">
+                  {isImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={doc.previewUrl}
+                      alt={doc.name}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-transform group-hover:scale-[1.02] duration-500"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-center space-y-4">
+                      <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary border border-primary/20">
+                        <FileText size={40} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-foreground">Visualisation du Document</h3>
+                        <p className="text-muted-foreground text-sm mt-1 max-w-xs">
+                          Ce document s&apos;ouvre dans un onglet isolé pour garantir le chiffrement de bout en bout.
+                        </p>
+                      </div>
+                      {doc.previewUrl && (
+                        <Button onClick={() => window.open(doc.previewUrl, "_blank")} className="gap-2">
+                          <ExternalLink size={16} />
+                          Ouvrir dans un nouvel onglet
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 inset-x-0 flex justify-center">
+                    <div className="px-3 py-1 bg-background/80 backdrop-blur border border-border rounded-full flex items-center gap-2">
+                      <ShieldCheck size={10} className="text-emerald-500" />
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Tunnel Sécurisé</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metadata */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted/30 p-4 rounded-xl border border-border">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5 mb-1">
+                      <Calendar size={10} className="text-primary" /> Ajouté le
+                    </label>
+                    <p className="text-sm font-bold text-foreground">
+                      {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
                     </p>
                   </div>
-                  <button 
-                    onClick={handleOpenDirectly}
-                    className="px-8 py-4 bg-brand-primary hover:bg-brand-hover text-white rounded-2xl font-bold flex items-center space-x-3 shadow-2xl shadow-brand-primary/30 transition-all active:scale-95"
-                  >
-                    <ExternalLink size={20} />
-                    <span>Ouvrir dans un nouvel onglet</span>
-                  </button>
+                  <div className="bg-muted/30 p-4 rounded-xl border border-border">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5 mb-1">
+                      <HardDrive size={10} className="text-primary" /> Taille
+                    </label>
+                    <p className="text-sm font-bold text-foreground">
+                      {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
                 </div>
-             )}
-             
-             <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-                <div className="px-3 py-1 bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-full flex items-center space-x-2">
-                   <ShieldCheck size={12} className="text-emerald-500" />
-                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tunnel de Données Sécurisé</span>
-                </div>
-             </div>
-          </div>
 
-          {/* Details & AI Analysis */}
-          <div className="grid grid-cols-1 gap-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-800/30 p-5 rounded-2xl border border-slate-800/50">
-                <label className="text-[10px] font-black text-slate-500 uppercase flex items-center mb-1">
-                  <Calendar size={12} className="mr-2 text-brand-primary" /> Ajouté le
-                </label>
-                <p className="text-sm font-bold text-slate-200">{new Date(document.createdAt).toLocaleDateString()}</p>
+                {/* AI Tags */}
+                {doc.tags && doc.tags.length > 0 && (
+                  <div className="bg-gradient-to-br from-card to-background border border-primary/20 rounded-2xl p-5 space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-5 opacity-[0.04]">
+                      <Database size={80} className="text-primary" />
+                    </div>
+                    <h3 className="text-xs font-black text-foreground flex items-center gap-2 uppercase tracking-widest">
+                      <span className="w-1.5 h-4 bg-primary rounded-full shadow-[0_0_10px_hsl(217,91%,60%)]" />
+                      Synthèse Sémantique IA
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed italic">
+                      &quot;Ce document a été analysé via notre pipeline RAG. Thématiques : {doc.tags.join(", ")}.&quot;
+                    </p>
+                    <div className="flex flex-wrap gap-2 relative z-10">
+                      {doc.tags.map((tag) => (
+                        <span key={tag} className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-[10px] border border-primary/20 font-black uppercase tracking-widest">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* OCR Text preview */}
+                {doc.ocrText && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">Texte extrait</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 rounded-lg p-3 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                        {doc.ocrText}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="bg-slate-800/30 p-5 rounded-2xl border border-slate-800/50">
-                <label className="text-[10px] font-black text-slate-500 uppercase flex items-center mb-1">
-                  <HardDrive size={12} className="mr-2 text-brand-primary" /> Taille
-                </label>
-                <p className="text-sm font-bold text-slate-200">{(document.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
-              </div>
+            </ScrollArea>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-border flex gap-3">
+              <Button variant="outline" className="flex-1 gap-2">
+                <Download size={16} /> Télécharger
+              </Button>
+              <Button className="flex-1 gap-2">
+                <Share2 size={16} /> Partager
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
+              >
+                <Trash2 size={18} />
+              </Button>
             </div>
-
-            <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-brand-primary/20 rounded-3xl p-6 space-y-4 relative overflow-hidden group shadow-xl">
-              <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-                <Database size={100} className="text-brand-primary" />
-              </div>
-              <h3 className="text-xs font-black text-white flex items-center uppercase tracking-[0.2em]">
-                <span className="w-1.5 h-4 bg-brand-primary rounded-full mr-3 shadow-[0_0_10px_#2563EB]"></span>
-                Synthèse Sémantique IA
-              </h3>
-              <div className="space-y-3 relative z-10">
-                <p className="text-sm text-slate-400 leading-relaxed italic">
-                  "Ce document PDF a été analysé via notre pipeline RAG. Il contient des informations structurées concernant les thématiques : {document.tags.join(', ')}."
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {document.tags.map(t => (
-                    <span key={t} className="px-3 py-1 bg-brand-primary/10 text-brand-primary rounded-lg text-[10px] border border-brand-primary/20 font-black uppercase tracking-widest">#{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="p-6 border-t border-slate-800 bg-slate-900 flex space-x-4">
-          <button className="flex-1 flex items-center justify-center space-x-2 px-4 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all border border-slate-700 shadow-lg active:scale-95">
-            <Download size={18} />
-            <span>Télécharger</span>
-          </button>
-          <button className="flex-1 flex items-center justify-center space-x-2 px-4 py-4 bg-brand-primary hover:bg-brand-hover text-white rounded-2xl font-bold transition-all shadow-xl shadow-brand-primary/30 active:scale-95">
-            <Share2 size={18} />
-            <span>Partager</span>
-          </button>
-          <button className="p-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl transition-all border border-red-500/20 active:scale-95">
-            <Trash2 size={20} />
-          </button>
-        </div>
-      </div>
-    </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
-};
-
-export default DocumentViewer;
+}
