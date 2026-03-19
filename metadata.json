@@ -1,0 +1,8 @@
+{
+  "name": "GEDOS SaaS",
+  "description": "Système de Gestion Électronique de Documents (GED) intelligent avec assistants IA multi-niveaux, OCR et transcription audio.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
