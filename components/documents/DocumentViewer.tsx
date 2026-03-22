@@ -26,6 +26,31 @@ export function DocumentViewer() {
   const isImage = doc?.mimeType.startsWith("image/");
   const isPdf = doc?.mimeType === "application/pdf";
 
+  function handleDownload() {
+    if (!doc?.previewUrl) return;
+    const blob = dataUrlToBlob(doc.previewUrl);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.originalName || doc.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleShare() {
+    if (!doc) return;
+    const text = `${doc.name}\nType : ${doc.mimeType}\nTags : ${doc.tags?.join(", ") || "—"}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: doc.name, text });
+        return;
+      } catch {
+        // fallback si annulé
+      }
+    }
+    await navigator.clipboard.writeText(text);
+  }
+
   const sizeLabel = doc
     ? doc.sizeBytes >= 1024 * 1024
       ? `${(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB`
@@ -240,12 +265,14 @@ export function DocumentViewer() {
               style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
             >
               <button
+                onClick={handleDownload}
                 className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-medium transition-all hover:bg-white/[0.06]"
                 style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.08)" }}
               >
                 <Download size={13} /> Télécharger
               </button>
               <button
+                onClick={handleShare}
                 className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-semibold text-white transition-all hover:opacity-90"
                 style={{ background: "#3b82f6" }}
               >
