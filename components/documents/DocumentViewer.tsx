@@ -2,7 +2,7 @@
 
 import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function DocumentViewer() {
@@ -17,6 +17,7 @@ export function DocumentViewer() {
 
   return (
     <Sheet open={!!doc} onOpenChange={(open) => !open && setSelectedDocument(null)}>
+      <SheetTitle className="sr-only">Visualiseur de document</SheetTitle>
       <SheetContent
         side="right"
         className="w-[520px] sm:max-w-[520px] p-0 flex flex-col"
