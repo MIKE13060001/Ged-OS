@@ -103,6 +103,85 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Detect if a user message is requesting file generation and extract structured data.
+   * Returns null if not a file generation request.
+   */
+  async detectAndStructureFileRequest(
+    userMessage: string,
+    knowledgeBase: string
+  ): Promise<{
+    isFileRequest: boolean;
+    fileType?: 'xlsx' | 'docx';
+    filename?: string;
+    textResponse?: string;
+    xlsxData?: { name: string; headers: string[]; rows: (string | number)[][] }[];
+    docxData?: { type: string; text?: string; headers?: string[]; rows?: string[][] }[];
+  }> {
+    const ai = this.getAI();
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [{
+        role: 'user',
+        parts: [{ text: `Tu es GEDOS-ARCHITECT avec accès à cette base de connaissances :
+${knowledgeBase || "VIDE"}
+
+MESSAGE UTILISATEUR : "${userMessage}"
+
+Détermine si l'utilisateur demande de CRÉER un fichier (Excel, DOCX, CSV, tableau, rapport, etc.).
+
+Si OUI, génère les données structurées pour ce fichier en JSON STRICT :
+
+Pour un fichier EXCEL (xlsx) :
+{
+  "isFileRequest": true,
+  "fileType": "xlsx",
+  "filename": "nom-du-fichier.xlsx",
+  "textResponse": "Message à afficher à l'utilisateur expliquant ce qui a été généré",
+  "xlsxData": [
+    {
+      "name": "Nom de l'onglet",
+      "headers": ["Colonne 1", "Colonne 2", "..."],
+      "rows": [["valeur1", "valeur2"], ["valeur3", "valeur4"]]
+    }
+  ]
+}
+
+Pour un fichier WORD (docx) :
+{
+  "isFileRequest": true,
+  "fileType": "docx",
+  "filename": "nom-du-fichier.docx",
+  "textResponse": "Message à afficher à l'utilisateur expliquant ce qui a été généré",
+  "docxData": [
+    {"type": "heading1", "text": "Titre principal"},
+    {"type": "heading2", "text": "Sous-titre"},
+    {"type": "paragraph", "text": "Paragraphe de texte..."},
+    {"type": "table", "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]]}
+  ]
+}
+
+Si NON (question normale) :
+{"isFileRequest": false}
+
+RÉPONDS UNIQUEMENT EN JSON VALIDE. PAS DE COMMENTAIRES. PAS DE MARKDOWN.` }]
+      }],
+      config: { temperature: 0.1 }
+    });
+
+    const raw = response.text || '{"isFileRequest": false}';
+    try {
+      const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      const json = cleaned.substring(firstBrace, lastBrace + 1);
+      return JSON.parse(json);
+    } catch {
+      return { isFileRequest: false };
+    }
+  }
+
   async chat(history: ChatMessage[], level: number = 1, documents: Document[]) {
     const ai = this.getAI();
     const validDocs = documents.filter(doc => doc.ocrStatus === 'completed' && doc.ocrText);

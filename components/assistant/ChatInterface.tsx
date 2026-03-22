@@ -11,10 +11,19 @@ import {
   Bot,
   User,
   AlertTriangle,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+
+interface FileAttachment {
+  base64: string;
+  mimeType: string;
+  filename: string;
+  type: "xlsx" | "docx";
+}
 
 interface Message {
   id: string;
@@ -22,6 +31,7 @@ interface Message {
   content: string;
   level?: number;
   timestamp: Date;
+  file?: FileAttachment;
 }
 
 const levels = [
@@ -125,6 +135,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
           content: data.text || "Désolé, je n'ai pas pu traiter cette demande.",
           level,
           timestamp: new Date(),
+          file: data.file || undefined,
         },
       ]);
     } catch {
@@ -300,6 +311,42 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
                   }
                 >
                   <p className="whitespace-pre-wrap">{m.content}</p>
+
+                  {/* File download button */}
+                  {m.file && (
+                    <button
+                      onClick={() => {
+                        const byteChars = atob(m.file!.base64);
+                        const byteNums = Array.from(byteChars, (c) => c.charCodeAt(0));
+                        const blob = new Blob([new Uint8Array(byteNums)], { type: m.file!.mimeType });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = m.file!.filename;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="mt-2.5 flex items-center gap-2 w-full px-3 py-2 rounded-lg transition-all duration-150 hover:opacity-80"
+                      style={{
+                        background: m.file.type === "xlsx"
+                          ? "rgba(16,185,129,0.12)"
+                          : "rgba(59,130,246,0.12)",
+                        border: `1px solid ${m.file.type === "xlsx" ? "rgba(16,185,129,0.25)" : "rgba(59,130,246,0.25)"}`,
+                      }}
+                    >
+                      {m.file.type === "xlsx"
+                        ? <FileSpreadsheet size={13} className="text-emerald-400 shrink-0" />
+                        : <FileText size={13} className="text-blue-400 shrink-0" />
+                      }
+                      <span
+                        className="text-[11px] font-medium flex-1 text-left truncate"
+                        style={{ color: m.file.type === "xlsx" ? "rgba(110,231,183,0.9)" : "rgba(147,197,253,0.9)" }}
+                      >
+                        {m.file.filename}
+                      </span>
+                      <Download size={11} style={{ color: "rgba(255,255,255,0.4)" }} />
+                    </button>
+                  )}
                 </div>
               </div>
 
