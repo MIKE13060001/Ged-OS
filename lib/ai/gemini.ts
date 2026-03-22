@@ -233,14 +233,54 @@ RÈGLES ABSOLUES :
     return response;
   }
 
-  async transcribeAudio(audioBase64: string) {
+  async transcribeAudio(audioBase64: string, synthesisType: string = 'transcription', mimeType: string = 'audio/mp3') {
     const ai = this.getAI();
+
+    const prompts: Record<string, string> = {
+      'transcription': `Transcris intégralement cet enregistrement audio. Garde le texte fidèle mot à mot, avec la ponctuation et les paragraphes. Ne résume pas, ne reformule pas.`,
+      'cr-reunion': `Tu es un assistant spécialisé en comptes-rendus de réunion.
+À partir de cet enregistrement audio, génère un compte-rendu structuré avec :
+- **Date & Participants** (si mentionnés)
+- **Ordre du jour**
+- **Points abordés** (chaque point en paragraphe)
+- **Décisions prises**
+- **Actions à mener** (avec responsable et échéance si mentionnés)
+Style professionnel, concis, factuel.`,
+      'synthese-rh': `Tu es un expert RH. À partir de cet enregistrement audio, produis une synthèse RH structurée :
+- **Contexte** (type d'entretien : embauche, évaluation, disciplinaire, etc.)
+- **Profil concerné** (si mentionné)
+- **Points clés abordés**
+- **Évaluation / Observations**
+- **Recommandations**
+- **Suivi nécessaire**
+Ton neutre et professionnel. Respecte la confidentialité.`,
+      'resume-client': `Tu es un commercial expert. À partir de cet enregistrement audio, génère un résumé client :
+- **Client** (nom, entreprise si mentionnés)
+- **Objet de l'échange**
+- **Besoins exprimés**
+- **Propositions faites**
+- **Objections / Réserves**
+- **Prochaines étapes**
+- **Température du deal** (chaud / tiède / froid)
+Concis, orienté action.`,
+      'liste-actions': `À partir de cet enregistrement audio, extrais UNIQUEMENT la liste des actions à réaliser :
+Pour chaque action, indique :
+- ☐ **Action** : description claire
+- **Responsable** : (si mentionné, sinon "À définir")
+- **Échéance** : (si mentionnée, sinon "À définir")
+- **Priorité** : Haute / Moyenne / Basse
+
+Trie par priorité. Ne mets aucun texte d'introduction ou de conclusion, uniquement la liste.`,
+    };
+
+    const prompt = prompts[synthesisType] || prompts['transcription'];
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { inlineData: { data: audioBase64, mimeType: 'audio/mp3' } },
-          { text: "Transcris et résume précisément." }
+          { inlineData: { data: audioBase64, mimeType } },
+          { text: prompt }
         ]
       },
     });
