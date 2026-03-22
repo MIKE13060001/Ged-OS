@@ -24,54 +24,43 @@ export async function POST(req: NextRequest) {
     const gemini = new GeminiService();
     const lastUserMessage = [...history].reverse().find((m) => m.role === "user")?.content || "";
 
-    console.log('[GEDOS] Chat request, lastMsg:', lastUserMessage.slice(0, 80));
-    console.log('[GEDOS] mightBeFileRequest:', mightBeFileRequest(lastUserMessage));
-
-    // Check if this might be a file generation request
+    // Check if this is a file generation request
     if (mightBeFileRequest(lastUserMessage)) {
-      const validDocs = (documents || []).filter(
-        (d: { ocrStatus: string; ocrText?: string; name: string }) =>
-          d.ocrStatus === "completed" && d.ocrText
-      );
-      const knowledgeBase = validDocs
-        .map((d: { name: string; ocrText: string }) => `[SOURCE: ${d.name}]\n${d.ocrText}\n---`)
-        .join("\n\n");
+      try {
+        const validDocs = (documents || []).filter(
+          (d: { ocrStatus: string; ocrText?: string; name: string }) =>
+            d.ocrStatus === "completed" && d.ocrText
+        );
+        const knowledgeBase = validDocs
+          .map((d: { name: string; ocrText: string }) => `[SOURCE: ${d.name}]\n${d.ocrText}\n---`)
+          .join("\n\n");
 
-      const fileResult = await gemini.detectAndStructureFileRequest(
-        lastUserMessage,
-        knowledgeBase
-      );
+        const fileResult = await gemini.generateFileData(lastUserMessage, knowledgeBase);
+        console.log('[GEDOS] generateFileData result:', fileResult.fileType, fileResult.filename);
 
-      if (fileResult.isFileRequest && fileResult.fileType) {
-        try {
-          let generated;
-
-          if (fileResult.fileType === "xlsx" && fileResult.xlsxData) {
-            generated = generateExcel(fileResult.xlsxData, fileResult.filename);
-          } else if (fileResult.fileType === "docx" && fileResult.docxData) {
-            generated = await generateDocx(
-              fileResult.docxData as Parameters<typeof generateDocx>[0],
-              fileResult.filename
-            );
-          }
-
-          if (generated) {
-            return NextResponse.json({
-              text:
-                fileResult.textResponse ||
-                `Votre fichier ${fileResult.fileType.toUpperCase()} a été généré avec succès.`,
-              file: {
-                base64: generated.base64,
-                mimeType: generated.mimeType,
-                filename: generated.filename,
-                type: generated.type,
-              },
-            });
-          }
-        } catch (fileError) {
-          console.error("File generation error:", fileError);
-          // Fall through to normal chat response
+        let generated;
+        if (fileResult.fileType === "xlsx" && fileResult.xlsxData) {
+          generated = generateExcel(fileResult.xlsxData, fileResult.filename);
+        } else if (fileResult.fileType === "docx" && fileResult.docxData) {
+          generated = await generateDocx(
+            fileResult.docxData as Parameters<typeof generateDocx>[0],
+            fileResult.filename
+          );
         }
+
+        if (generated) {
+          return NextResponse.json({
+            text: fileResult.textResponse,
+            file: {
+              base64: generated.base64,
+              mimeType: generated.mimeType,
+              filename: generated.filename,
+              type: generated.type,
+            },
+          });
+        }
+      } catch (fileError) {
+        console.error("[GEDOS] File generation failed, falling back to chat:", fileError);
       }
     }
 
