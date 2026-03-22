@@ -5,9 +5,26 @@ import { useDocumentStore } from "@/stores/documentStore";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] ?? "application/octet-stream";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+function openInNewTab(previewUrl: string) {
+  const blob = dataUrlToBlob(previewUrl);
+  const blobUrl = URL.createObjectURL(blob);
+  const win = window.open(blobUrl, "_blank");
+  if (win) win.addEventListener("beforeunload", () => URL.revokeObjectURL(blobUrl));
+}
+
 export function DocumentViewer() {
   const { selectedDocument: doc, setSelectedDocument, removeDocument } = useDocumentStore();
   const isImage = doc?.mimeType.startsWith("image/");
+  const isPdf = doc?.mimeType === "application/pdf";
 
   const sizeLabel = doc
     ? doc.sizeBytes >= 1024 * 1024
@@ -75,7 +92,7 @@ export function DocumentViewer() {
                   style={{
                     background: "rgba(255,255,255,0.02)",
                     border: "1px solid rgba(255,255,255,0.06)",
-                    minHeight: "200px",
+                    minHeight: isPdf ? "420px" : "200px",
                   }}
                 >
                   {isImage ? (
@@ -84,6 +101,13 @@ export function DocumentViewer() {
                       src={doc.previewUrl}
                       alt={doc.name}
                       className="max-w-full max-h-64 object-contain rounded-lg p-4"
+                    />
+                  ) : isPdf && doc.previewUrl ? (
+                    <iframe
+                      src={doc.previewUrl}
+                      title={doc.name}
+                      className="w-full rounded-xl"
+                      style={{ height: "420px", border: "none" }}
                     />
                   ) : (
                     <div className="flex flex-col items-center text-center p-8 gap-4">
@@ -94,14 +118,14 @@ export function DocumentViewer() {
                         <FileText size={30} className="text-blue-400" />
                       </div>
                       <div>
-                        <p className="text-[14px] font-semibold text-white/85">Visualisation sécurisée</p>
+                        <p className="text-[14px] font-semibold text-white/85">Aperçu non disponible</p>
                         <p className="text-[12px] mt-1 max-w-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          Ce document s&apos;ouvre dans un onglet isolé pour garantir le chiffrement de bout en bout.
+                          Ce format ne peut pas être prévisualisé directement.
                         </p>
                       </div>
                       {doc.previewUrl && (
                         <button
-                          onClick={() => window.open(doc.previewUrl, "_blank")}
+                          onClick={() => openInNewTab(doc.previewUrl!)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:opacity-90"
                           style={{ background: "#3b82f6", color: "white" }}
                         >

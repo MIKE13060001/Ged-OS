@@ -3,6 +3,18 @@
 import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical, FileImage } from "lucide-react";
 import { Document, OCRStatus } from "@/types/database";
 import { useDocumentStore } from "@/stores/documentStore";
+
+function openInNewTab(previewUrl: string) {
+  const [header, base64] = previewUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] ?? "application/octet-stream";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mime });
+  const blobUrl = URL.createObjectURL(blob);
+  const win = window.open(blobUrl, "_blank");
+  if (win) win.addEventListener("beforeunload", () => URL.revokeObjectURL(blobUrl));
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,7 +104,7 @@ export function DocumentCard({ doc }: { doc: Document }) {
               {doc.previewUrl && (
                 <DropdownMenuItem
                   className="text-white/65 focus:text-white focus:bg-white/[0.05] text-[12px] gap-2 cursor-pointer"
-                  onClick={() => window.open(doc.previewUrl, "_blank")}
+                  onClick={() => openInNewTab(doc.previewUrl!)}
                 >
                   <ExternalLink size={12} /> Ouvrir
                 </DropdownMenuItem>
