@@ -13,6 +13,8 @@ interface DocumentState {
   selectedDocument: Document | null;
   folders: Folder[];
   selectedFolderId: string | null;
+  // versions: map rootId -> ordered list of Document (oldest first)
+  versions: Record<string, Document[]>;
   addDocument: (doc: Document) => void;
   setSelectedDocument: (doc: Document | null) => void;
   removeDocument: (id: string) => void;
@@ -22,6 +24,8 @@ interface DocumentState {
   setSelectedFolder: (id: string | null) => void;
   moveDocument: (docId: string, folderId: string | null) => void;
   updateDocument: (id: string, patch: Partial<Document>) => void;
+  addVersion: (rootId: string, newDoc: Document) => void;
+  getVersions: (rootId: string) => Document[];
 }
 
 export const useDocumentStore = create<DocumentState>()(
@@ -31,6 +35,7 @@ export const useDocumentStore = create<DocumentState>()(
       selectedDocument: null,
       folders: [],
       selectedFolderId: null,
+      versions: {},
       addDocument: (doc) => {
         log('Document importé', doc.originalName || doc.name);
         set((state) => ({ documents: [doc, ...state.documents] }));
@@ -73,6 +78,23 @@ export const useDocumentStore = create<DocumentState>()(
             ? { ...state.selectedDocument, ...patch }
             : state.selectedDocument,
         }));
+      },
+      addVersion: (rootId, newDoc) => {
+        log('Nouvelle version importée', `v${newDoc.version} — ${newDoc.name}`);
+        set((state) => {
+          const existing = state.versions[rootId] ?? [];
+          return {
+            versions: { ...state.versions, [rootId]: [...existing, newDoc] },
+            // Replace the root doc in documents list with the new version
+            documents: state.documents.map(d => d.id === rootId ? { ...newDoc, id: rootId } : d),
+            selectedDocument: state.selectedDocument?.id === rootId
+              ? { ...newDoc, id: rootId }
+              : state.selectedDocument,
+          };
+        });
+      },
+      getVersions: (rootId) => {
+        return useDocumentStore.getState().versions[rootId] ?? [];
       },
     }),
     {

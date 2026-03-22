@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, KeyboardEvent } from "react";
-import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check } from "lucide-react";
+import { useState, useRef, KeyboardEvent } from "react";
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check, History, UploadCloud } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { useAuditStore } from "@/stores/auditStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -24,8 +24,10 @@ function openInNewTab(previewUrl: string) {
 }
 
 export function DocumentViewer() {
-  const { selectedDocument: doc, setSelectedDocument, removeDocument, updateDocument } = useDocumentStore();
+  const { selectedDocument: doc, setSelectedDocument, removeDocument, updateDocument, addVersion, versions } = useDocumentStore();
   const { logEvent } = useAuditStore();
+  const versionInputRef = useRef<HTMLInputElement>(null);
+  const docVersions = doc ? (versions[doc.id] ?? []) : [];
   const isImage = doc?.mimeType.startsWith("image/");
   const isPdf = doc?.mimeType === "application/pdf";
 
@@ -61,6 +63,32 @@ export function DocumentViewer() {
     const name = nameValue.trim();
     if (name && doc) updateDocument(doc.id, { name });
     setEditingName(false);
+  }
+
+  function handleNewVersion(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !doc) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onloadend = () => {
+      const previewUrl = reader.result as string;
+      const newVersion: import("@/types/database").Document = {
+        ...doc,
+        id: crypto.randomUUID(),
+        originalName: file.name,
+        name: doc.name,
+        mimeType: file.type || doc.mimeType,
+        sizeBytes: file.size,
+        previewUrl,
+        version: doc.version + 1,
+        ocrStatus: "pending",
+        ocrText: undefined,
+        tags: doc.tags,
+        createdAt: new Date().toISOString(),
+      };
+      addVersion(doc.id, newVersion);
+    };
+    e.target.value = "";
   }
 
   function handleDownload() {
@@ -321,6 +349,56 @@ export function DocumentViewer() {
                     >
                       <Plus size={11} />
                     </button>
+                  </div>
+                </div>
+
+                {/* Versioning */}
+                <div
+                  className="rounded-xl p-4"
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <History size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        Versions
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => versionInputRef.current?.click()}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-90"
+                      style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
+                    >
+                      <UploadCloud size={10} /> Nouvelle version
+                    </button>
+                    <input ref={versionInputRef} type="file" accept={doc.mimeType} className="hidden" onChange={handleNewVersion} />
+                  </div>
+                  {/* Version list */}
+                  <div className="space-y-1.5">
+                    {/* Current */}
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-[11px] font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>
+                        v{doc.version} <span className="text-[9px] font-normal ml-1" style={{ color: "rgba(255,255,255,0.3)" }}>(actuelle)</span>
+                      </span>
+                      <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                        {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+                      </span>
+                    </div>
+                    {/* Previous versions */}
+                    {docVersions.slice().reverse().slice(0, 5).map((v) => (
+                      <div
+                        key={v.id}
+                        className="flex items-center justify-between py-1"
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+                      >
+                        <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                          v{v.version}
+                        </span>
+                        <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+                          {new Date(v.createdAt).toLocaleDateString("fr-FR")}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
