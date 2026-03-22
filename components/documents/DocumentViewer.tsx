@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X } from "lucide-react";
+import { useState, KeyboardEvent } from "react";
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,9 +23,43 @@ function openInNewTab(previewUrl: string) {
 }
 
 export function DocumentViewer() {
-  const { selectedDocument: doc, setSelectedDocument, removeDocument } = useDocumentStore();
+  const { selectedDocument: doc, setSelectedDocument, removeDocument, updateDocument } = useDocumentStore();
   const isImage = doc?.mimeType.startsWith("image/");
   const isPdf = doc?.mimeType === "application/pdf";
+
+  // Tag editing state
+  const [newTag, setNewTag] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+
+  function addTag() {
+    const tag = newTag.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!tag || !doc) return;
+    if (doc.tags?.includes(tag)) { setNewTag(""); return; }
+    updateDocument(doc.id, { tags: [...(doc.tags ?? []), tag] });
+    setNewTag("");
+  }
+
+  function removeTag(tag: string) {
+    if (!doc) return;
+    updateDocument(doc.id, { tags: doc.tags.filter(t => t !== tag) });
+  }
+
+  function handleTagKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); }
+  }
+
+  function startEditName() {
+    if (!doc) return;
+    setNameValue(doc.name);
+    setEditingName(true);
+  }
+
+  function saveName() {
+    const name = nameValue.trim();
+    if (name && doc) updateDocument(doc.id, { name });
+    setEditingName(false);
+  }
 
   function handleDownload() {
     if (!doc?.previewUrl) return;
@@ -84,10 +119,31 @@ export function DocumentViewer() {
                 >
                   <FileText size={15} className="text-blue-400" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-white/90 truncate" title={doc.name}>
-                    {doc.name}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  {editingName ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        value={nameValue}
+                        onChange={e => setNameValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+                        className="text-[13px] font-semibold bg-transparent outline-none border-b text-white/90 w-full"
+                        style={{ borderColor: "rgba(59,130,246,0.5)" }}
+                      />
+                      <button onClick={saveName} className="shrink-0 text-blue-400 hover:text-blue-300">
+                        <Check size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 group/name">
+                      <p className="text-[13px] font-semibold text-white/90 truncate" title={doc.name}>
+                        {doc.name}
+                      </p>
+                      <button onClick={startEditName} className="opacity-0 group-hover/name:opacity-100 transition-opacity text-white/30 hover:text-white/60">
+                        <Pencil size={11} />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-0.5">
                     <span
                       className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
@@ -202,41 +258,68 @@ export function DocumentViewer() {
                   ))}
                 </div>
 
-                {/* AI tags */}
-                {doc.tags && doc.tags.length > 0 && (
-                  <div
-                    className="rounded-xl p-4"
-                    style={{
-                      background: "rgba(59,130,246,0.05)",
-                      border: "1px solid rgba(59,130,246,0.12)",
-                    }}
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <Tag size={11} className="text-blue-400" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(59,130,246,0.8)" }}>
-                        Synthèse sémantique IA
-                      </span>
-                    </div>
-                    <p className="text-[12px] leading-relaxed italic mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      &quot;Thématiques identifiées : {doc.tags.join(", ")}.&quot;
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {doc.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide"
-                          style={{
-                            background: "rgba(59,130,246,0.12)",
-                            color: "#60a5fa",
-                            border: "1px solid rgba(59,130,246,0.2)",
-                          }}
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
+                {/* Tags — édition manuelle */}
+                <div
+                  className="rounded-xl p-4"
+                  style={{
+                    background: "rgba(59,130,246,0.05)",
+                    border: "1px solid rgba(59,130,246,0.12)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Tag size={11} className="text-blue-400" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(59,130,246,0.8)" }}>
+                      Tags
+                    </span>
                   </div>
-                )}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(doc.tags ?? []).map((tag) => (
+                      <span
+                        key={tag}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide group/tag"
+                        style={{
+                          background: "rgba(59,130,246,0.12)",
+                          color: "#60a5fa",
+                          border: "1px solid rgba(59,130,246,0.2)",
+                        }}
+                      >
+                        #{tag}
+                        <button
+                          onClick={() => removeTag(tag)}
+                          className="opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                          style={{ color: "rgba(96,165,250,0.6)" }}
+                        >
+                          <X size={9} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {/* Add tag input */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ajouter un tag…"
+                      value={newTag}
+                      onChange={e => setNewTag(e.target.value)}
+                      onKeyDown={handleTagKey}
+                      className="flex-1 h-6 px-2 rounded-md text-[11px] outline-none"
+                      style={{
+                        background: "rgba(59,130,246,0.08)",
+                        border: "1px solid rgba(59,130,246,0.2)",
+                        color: "rgba(255,255,255,0.7)",
+                        fontFamily: "inherit",
+                      }}
+                    />
+                    <button
+                      onClick={addTag}
+                      disabled={!newTag.trim()}
+                      className="w-6 h-6 rounded-md flex items-center justify-center transition-opacity disabled:opacity-30"
+                      style={{ background: "rgba(59,130,246,0.2)", color: "#60a5fa" }}
+                    >
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                </div>
 
                 {/* OCR text */}
                 {doc.ocrText && (

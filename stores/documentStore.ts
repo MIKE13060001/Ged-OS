@@ -17,6 +17,7 @@ interface DocumentState {
   removeFolder: (id: string) => void;
   setSelectedFolder: (id: string | null) => void;
   moveDocument: (docId: string, folderId: string | null) => void;
+  updateDocument: (id: string, patch: Partial<Document>) => void;
 }
 
 export const useDocumentStore = create<DocumentState>()(
@@ -41,6 +42,12 @@ export const useDocumentStore = create<DocumentState>()(
       setSelectedFolder: (id) => set({ selectedFolderId: id }),
       moveDocument: (docId, folderId) => set((state) => ({
         documents: state.documents.map(d => d.id === docId ? { ...d, folderId: folderId ?? undefined } : d)
+      })),
+      updateDocument: (id, patch) => set((state) => ({
+        documents: state.documents.map(d => d.id === id ? { ...d, ...patch } : d),
+        selectedDocument: state.selectedDocument?.id === id
+          ? { ...state.selectedDocument, ...patch }
+          : state.selectedDocument,
       })),
     }),
     {
