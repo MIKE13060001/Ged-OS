@@ -40,6 +40,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // RBAC: /admin requires admin role
+  if (pathname.startsWith("/admin")) {
+    const role = user.user_metadata?.role as string | undefined;
+    if (role !== "admin") {
+      return NextResponse.redirect(new URL("/documents", request.url));
+    }
+  }
+
   return response;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   FileText,
   Mic,
@@ -17,16 +17,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/contexts/SupabaseAuthContext";
+import { useRole } from "@/hooks/useRole";
+import { ROLE_LABELS, ROLE_COLORS } from "@/lib/rbac";
 
 const navItems = [
   { href: "/documents", icon: FileText, label: "Documents", shortcut: "D", color: "#3b82f6" },
   { href: "/audio", icon: Mic, label: "Audio", shortcut: "A", color: "#8b5cf6" },
   { href: "/assistant", icon: MessageSquare, label: "Assistant IA", shortcut: "I", color: "#10b981" },
-];
-
-const bottomNavItems = [
-  { href: "/settings", icon: Settings, label: "Paramètres", shortcut: "P", color: "#94a3b8" },
-  { href: "/admin", icon: ShieldCheck, label: "Administration", shortcut: null, color: "#f59e0b" },
 ];
 
 function NavItem({
@@ -61,20 +59,17 @@ function NavItem({
         boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
       } : {}}
     >
-      {/* Active indicator */}
       {active && (
         <span
           className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full"
           style={{ background: color, boxShadow: `0 0 8px ${color}80` }}
         />
       )}
-
       <Icon
         size={15}
         style={{ color: active ? color : undefined }}
         className={cn(!active && "opacity-50 group-hover:opacity-80 transition-opacity")}
       />
-
       {!collapsed && (
         <>
           <span className={cn("text-[13px] font-medium flex-1", active ? "text-white" : "")}>
@@ -114,7 +109,21 @@ function NavItem({
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const { user, signOut, isConfigured } = useAuth();
+  const { role, isAdmin } = useRole();
+
+  const displayName = user?.user_metadata?.full_name
+    ?? user?.email?.split("@")[0]
+    ?? "G. Architect";
+  const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  const roleColors = ROLE_COLORS[role];
+
+  async function handleSignOut() {
+    await signOut();
+    if (isConfigured) router.push("/auth/login");
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -160,9 +169,7 @@ export function AppSidebar() {
                   Plan Enterprise
                 </p>
               </div>
-              <button
-                className="w-5 h-5 flex items-center justify-center rounded opacity-40 hover:opacity-70 transition-opacity shrink-0"
-              >
+              <button className="w-5 h-5 flex items-center justify-center rounded opacity-40 hover:opacity-70 transition-opacity shrink-0">
                 <ChevronsUpDown size={11} className="text-white" />
               </button>
             </>
@@ -174,85 +181,67 @@ export function AppSidebar() {
           {/* Main section */}
           <div className="space-y-0.5">
             {!collapsed && (
-              <p
-                className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2.5 pb-1.5 pt-0.5"
-                style={{ color: "rgba(255,255,255,0.2)" }}
-              >
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2.5 pb-1.5 pt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
                 Espace de travail
               </p>
             )}
             {navItems.map((item) => (
-              <NavItem
-                key={item.href}
-                {...item}
-                collapsed={collapsed}
-                active={pathname.startsWith(item.href)}
-              />
+              <NavItem key={item.href} {...item} collapsed={collapsed} active={pathname.startsWith(item.href)} />
             ))}
           </div>
 
-          {/* Divider */}
           <div className="my-3" style={{ height: "1px", background: "rgba(255,255,255,0.05)", marginLeft: collapsed ? 0 : "0.5rem", marginRight: collapsed ? 0 : "0.5rem" }} />
 
           {/* Bottom section */}
           <div className="space-y-0.5">
             {!collapsed && (
-              <p
-                className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2.5 pb-1.5 pt-0.5"
-                style={{ color: "rgba(255,255,255,0.2)" }}
-              >
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2.5 pb-1.5 pt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>
                 Système
               </p>
             )}
-            {bottomNavItems.map((item) => (
-              <NavItem
-                key={item.href}
-                {...item}
-                collapsed={collapsed}
-                active={pathname.startsWith(item.href)}
-              />
-            ))}
+            <NavItem href="/settings" icon={Settings} label="Paramètres" shortcut="P" color="#94a3b8" collapsed={collapsed} active={pathname.startsWith("/settings")} />
+            {/* Admin link — visible only to admins */}
+            {isAdmin && (
+              <NavItem href="/admin" icon={ShieldCheck} label="Administration" shortcut={null} color="#f59e0b" collapsed={collapsed} active={pathname.startsWith("/admin")} />
+            )}
           </div>
         </nav>
 
         {/* User footer */}
-        <div
-          className="shrink-0 p-2 border-t"
-          style={{ borderColor: "rgba(255,255,255,0.05)" }}
-        >
+        <div className="shrink-0 p-2 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  className="w-full flex justify-center p-2 rounded-lg transition-colors hover:bg-white/[0.04] group"
-                >
+                <button className="w-full flex justify-center p-2 rounded-lg transition-colors hover:bg-white/[0.04]">
                   <div
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                     style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
                   >
-                    GA
+                    {initials}
                   </div>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">G. Architect · Enterprise Admin</TooltipContent>
+              <TooltipContent side="right">{displayName} · {ROLE_LABELS[role]}</TooltipContent>
             </Tooltip>
           ) : (
-            <div
-              className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer group hover:bg-white/[0.04] transition-colors"
-            >
+            <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer group hover:bg-white/[0.04] transition-colors">
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                 style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
               >
-                GA
+                {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-white/90 truncate leading-none">G. Architect</p>
-                <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(99,102,241,0.65)" }}>
-                  Enterprise Admin
-                </p>
+                <p className="text-[12px] font-semibold text-white/90 truncate leading-none">{displayName}</p>
+                <span
+                  className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 leading-none"
+                  style={{ background: roleColors.bg, color: roleColors.text, border: `1px solid ${roleColors.border}` }}
+                >
+                  {ROLE_LABELS[role]}
+                </span>
               </div>
               <button
+                onClick={handleSignOut}
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-red-400"
                 title="Déconnexion"
               >

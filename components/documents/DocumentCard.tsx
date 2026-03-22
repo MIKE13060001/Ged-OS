@@ -3,6 +3,7 @@
 import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical, FileImage, FolderInput } from "lucide-react";
 import { Document, OCRStatus } from "@/types/database";
 import { useDocumentStore } from "@/stores/documentStore";
+import { RoleGate } from "@/components/auth/RoleGate";
 import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
@@ -153,13 +154,15 @@ export function DocumentCard({ doc }: { doc: Document }) {
                   </DropdownMenuSub>
                 </>
               )}
-              <DropdownMenuSeparator style={{ background: "rgba(255,255,255,0.06)" }} />
-              <DropdownMenuItem
-                className="text-red-400/80 focus:text-red-400 focus:bg-red-500/[0.08] text-[12px] gap-2 cursor-pointer"
-                onClick={() => removeDocument(doc.id)}
-              >
-                <Trash2 size={12} /> Supprimer
-              </DropdownMenuItem>
+              <RoleGate permission="deleteDocuments">
+                <DropdownMenuSeparator style={{ background: "rgba(255,255,255,0.06)" }} />
+                <DropdownMenuItem
+                  className="text-red-400/80 focus:text-red-400 focus:bg-red-500/[0.08] text-[12px] gap-2 cursor-pointer"
+                  onClick={() => removeDocument(doc.id)}
+                >
+                  <Trash2 size={12} /> Supprimer
+                </DropdownMenuItem>
+              </RoleGate>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

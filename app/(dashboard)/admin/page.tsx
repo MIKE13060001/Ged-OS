@@ -16,6 +16,7 @@ import { BlurFade } from "@/components/magicui/blur-fade";
 import { NumberTicker } from "@/components/magicui/number-ticker";
 import { useAuditStore } from "@/stores/auditStore";
 import { useDocumentStore } from "@/stores/documentStore";
+import { RoleGate, AccessDeniedBadge } from "@/components/auth/RoleGate";
 
 const compliance = [
   { label: "Chiffrement at-rest", value: 100, status: "OK" },
@@ -53,6 +54,14 @@ export default function AdminPage() {
   ];
 
   return (
+    <RoleGate
+      permission="viewAdmin"
+      fallback={
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <AccessDeniedBadge message="Administration réservée aux administrateurs" />
+        </div>
+      }
+    >
     <div className="flex flex-col h-full">
       {/* Page header */}
       <div
@@ -267,5 +276,6 @@ export default function AdminPage() {
         </div>
       </div>
     </div>
+    </RoleGate>
   );
 }

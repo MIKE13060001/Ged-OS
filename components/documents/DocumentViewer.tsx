@@ -4,6 +4,7 @@ import { useState, useRef, KeyboardEvent } from "react";
 import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check, History, UploadCloud } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { useAuditStore } from "@/stores/auditStore";
+import { RoleGate } from "@/components/auth/RoleGate";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -443,13 +444,15 @@ export function DocumentViewer() {
               >
                 <Share2 size={13} /> Partager
               </button>
-              <button
-                onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/[0.1]"
-                style={{ color: "rgba(248,113,113,0.6)", border: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                <Trash2 size={13} />
-              </button>
+              <RoleGate permission="deleteDocuments">
+                <button
+                  onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/[0.1]"
+                  style={{ color: "rgba(248,113,113,0.6)", border: "1px solid rgba(255,255,255,0.07)" }}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </RoleGate>
             </div>
           </>
         )}
