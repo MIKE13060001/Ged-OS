@@ -34,7 +34,8 @@ function cleanJsonString(input: string): string {
 
 export class GeminiService {
   private getAI() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+    return new GoogleGenAI({ apiKey });
   }
 
   /**
@@ -102,6 +103,78 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Generate a real Excel or DOCX file from a user request + knowledge base.
+   * Returns base64 file data ready to send to the client.
+   */
+  async generateFileFromRequest(
+    userMessage: string,
+    knowledgeBase: string
+  ): Promise<{
+    sheets: { name: string; headers: string[]; rows: string[][] }[];
+    filename: string;
+    textResponse: string;
+  }> {
+    const ai = this.getAI();
+
+    const prompt = `Tu es un générateur de fichiers Excel. Tu dois créer le contenu d'un fichier Excel basé sur la demande de l'utilisateur.
+
+BASE DE CONNAISSANCES DISPONIBLE :
+${knowledgeBase || "Aucun document. Génère des données d'exemple pertinentes selon la demande."}
+
+DEMANDE : "${userMessage}"
+
+Génère les données pour le fichier Excel. Réponds avec du JSON UNIQUEMENT, dans ce format exact :
+{
+  "filename": "nom-descriptif.xlsx",
+  "textResponse": "Description courte de ce qui a été généré",
+  "sheets": [
+    {
+      "name": "Nom de l'onglet",
+      "headers": ["En-tête 1", "En-tête 2", "En-tête 3"],
+      "rows": [
+        ["valeur1", "valeur2", "valeur3"],
+        ["valeur4", "valeur5", "valeur6"]
+      ]
+    }
+  ]
+}
+
+RÈGLES ABSOLUES :
+1. Retourne UNIQUEMENT du JSON valide, rien d'autre
+2. Utilise les vraies données de la base de connaissances si disponibles
+3. Minimum 5 lignes de données par onglet
+4. Maximum 3 onglets
+5. Les headers doivent être clairs et descriptifs
+6. Toutes les valeurs dans "rows" doivent être des strings`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { temperature: 0.1 }
+    });
+
+    const raw = (response.text || '').trim();
+    console.log('[GEDOS] File generation response (first 400):', raw.slice(0, 400));
+
+    // Extract JSON from response (handles markdown code blocks)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in response');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!parsed.sheets || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+      throw new Error('Invalid sheets data: ' + JSON.stringify(parsed).slice(0, 200));
+    }
+
+    console.log('[GEDOS] Parsed sheets:', parsed.sheets.length, 'filename:', parsed.filename);
+    return {
+      sheets: parsed.sheets,
+      filename: parsed.filename || 'export.xlsx',
+      textResponse: parsed.textResponse || 'Votre fichier Excel a été généré.',
+    };
+  }
+
   async chat(history: ChatMessage[], level: number = 1, documents: Document[]) {
     const ai = this.getAI();
     const validDocs = documents.filter(doc => doc.ocrStatus === 'completed' && doc.ocrText);
@@ -110,17 +183,37 @@ export class GeminiService {
       .map(doc => `[SOURCE: ${doc.name}]\nCONTENU EXTRAIT:\n${doc.ocrText}\n---`)
       .join('\n\n');
 
-    const systemInstruction = `Tu es GEDOS-ARCHITECT.
-    
+    const systemInstruction = `Tu es GEDOS-ARCHITECT, un assistant documentaire intelligent.
+
     BASE DE CONNAISSANCES :
     ${knowledgeBase || "VIDE"}
-    
+
     RÈGLES D'OR :
     - Utilise UNIQUEMENT la base de connaissances ci-dessus.
     - Pour les images PNG indexées, fie-toi à la transcription OCR fournie.
     - Si l'info n'y est pas, dis : "Désolé, cette information ne figure pas dans vos documents."
     - Ne jamais inventer (Hallucination interdite).
-    - Température 0.1 active.`;
+    - Température 0.1 active.
+
+    GÉNÉRATION DE FICHIERS EXCEL :
+    Quand l'utilisateur demande un tableau Excel, un export Excel, ou une extraction de données en tableur :
+    1. Génère le contenu textuel d'introduction (ex: "J'ai préparé votre fichier Excel avec X lignes.")
+    2. Ajoute EXACTEMENT le marqueur ##EXCEL_DATA## sur une nouvelle ligne
+    3. Suivi IMMÉDIATEMENT d'un objet JSON valide sur une seule ligne avec cette structure :
+       {"filename":"nom_du_fichier","data":[["Col1","Col2","Col3"],["val1","val2","val3"],...]}
+
+    RÈGLES CRITIQUES pour l'Excel :
+    - La première ligne de "data" DOIT être les en-têtes de colonnes
+    - Toutes les valeurs doivent être des strings ou des nombres
+    - Le JSON doit être valide et sur UNE SEULE ligne après ##EXCEL_DATA##
+    - Ne mets RIEN après le JSON
+    - N'utilise jamais ce format pour autre chose que les demandes Excel explicites
+
+    EXEMPLE de réponse Excel :
+    J'ai extrait les données en 10 lignes depuis vos documents.
+    ##EXCEL_DATA##
+    {"filename":"plan_action_BTP","data":[["Semaine","Étape","Actions","Documents"],["Semaine 1","Poser les fondations","Mettre à jour les docs","Kbis, Assurances"]]}`;
+
 
     const contents = history.map(msg => ({
       role: msg.role,

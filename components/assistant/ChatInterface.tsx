@@ -1,46 +1,100 @@
+"use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Paperclip, Mic, Database, BarChart3, Zap, ShieldCheck, Loader2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import { useUIStore } from '../../stores/uiStore';
-import { useDocumentStore } from '../../stores/documentStore';
-import { getTranslation } from '../../lib/i18n';
-import { gemini, ChatMessage } from '../../lib/ai/gemini';
-import ActionApproval from './ActionApproval';
+import { useState, useRef, useEffect } from "react";
+import {
+  Send,
+  Sparkles,
+  Database,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Bot,
+  User,
+  AlertTriangle,
+  Download,
+  FileSpreadsheet,
+} from "lucide-react";
+import { useDocumentStore } from "@/stores/documentStore";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+
+interface FileAttachment {
+  base64: string;
+  mimeType: string;
+  filename: string;
+  type: "xlsx" | "docx";
+}
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   level?: number;
-  pendingAction?: any;
   timestamp: Date;
+  file?: FileAttachment;
 }
 
-const ChatInterface: React.FC = () => {
-  const { language } = useUIStore();
-  const t = getTranslation(language);
-  const documents = useDocumentStore(state => state.documents);
-  
+const levels = [
+  { id: 1, label: "Recherche", desc: "Recherche sémantique dans vos documents", color: "#3b82f6", shortColor: "blue" },
+  { id: 2, label: "Analyse", desc: "Extraction structurée et rapports", color: "#8b5cf6", shortColor: "violet" },
+  { id: 3, label: "Action", desc: "Actions avec validation humaine", color: "#f59e0b", shortColor: "amber" },
+];
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div
+        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: "rgba(59,130,246,0.12)",
+          border: "1px solid rgba(59,130,246,0.2)",
+        }}
+      >
+        <Bot size={11} className="text-blue-400" />
+      </div>
+      <div
+        className="px-3 py-2.5 rounded-xl rounded-tl-none"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-white/30"
+              style={{
+                animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ChatInterface({ compact = false }: { compact?: boolean }) {
+  const documents = useDocumentStore((state) => state.documents);
+
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      role: 'assistant',
-      content: `Bonjour ! Je suis votre assistant GEDOS. J'ai ${documents.length} documents chargés en mémoire perpétuelle. Comment puis-je vous aider ?`,
-      timestamp: new Date()
-    }
+      id: "1",
+      role: "assistant",
+      content: `Bonjour. Je suis votre assistant GEDOS avec accès à ${documents.length} document${documents.length !== 1 ? "s" : ""} indexé${documents.length !== 1 ? "s" : ""}. Comment puis-je vous aider ?`,
+      timestamp: new Date(),
+    },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [level, setLevel] = useState(1);
   const [showKB, setShowKB] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   const handleSend = async () => {
@@ -49,135 +103,322 @@ const ChatInterface: React.FC = () => {
     const userQuery = input;
     const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: userQuery,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    setInput('');
+    setInput("");
     setIsTyping(true);
 
     try {
-      // Conversion pour l'API Gemini (Historique complet)
-      const historyForAI: ChatMessage[] = newMessages.map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        content: m.content
+      const history = newMessages.map((m) => ({
+        role: m.role === "user" ? "user" : "model",
+        content: m.content,
       }));
 
-      const response = await gemini.chat(historyForAI, level, documents);
-      
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.text || "Désolé, je n'ai pas pu traiter cette demande.",
-        level,
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, aiResponse]);
-    } catch (error) {
-      console.error(error);
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history, level, documents }),
+      });
+
+      const data = res.ok ? await res.json() : { text: "Désolé, une erreur s'est produite." };
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: data.text || "Désolé, je n'ai pas pu traiter cette demande.",
+          level,
+          timestamp: new Date(),
+          file: data.file || undefined,
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Erreur réseau. Veuillez réessayer.",
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const currentLevel = levels.find((l) => l.id === level)!;
+
   return (
-    <div className="flex flex-col h-full bg-slate-950/50 rounded-2xl border border-slate-800/50 overflow-hidden shadow-2xl">
-      {/* Header avec indicateur de base de connaissances */}
-      <div className="p-4 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-brand-primary/20 rounded-lg">
-            <Sparkles className="text-brand-primary" size={20} />
+    <div
+      className="flex flex-col h-full rounded-xl overflow-hidden"
+      style={{
+        background: "hsl(240 12% 6%)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      {/* Chat header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: "rgba(59,130,246,0.12)",
+              border: "1px solid rgba(59,130,246,0.2)",
+            }}
+          >
+            <Sparkles size={13} className="text-blue-400" />
           </div>
           <div>
-            <h2 className="font-semibold text-slate-100">Assistant Sovereign</h2>
-            <button 
+            <p className="text-[13px] font-semibold text-white/90">
+              {compact ? "Assistant GEDOS" : "Assistant Souverain"}
+            </p>
+            <button
               onClick={() => setShowKB(!showKB)}
-              className="flex items-center space-x-1.5 text-[10px] text-brand-primary font-bold uppercase tracking-widest hover:text-white transition-colors"
+              className="flex items-center gap-1 text-[10px] font-medium transition-colors hover:text-white/60"
+              style={{ color: "rgba(59,130,246,0.7)" }}
             >
-              <Database size={10} />
-              <span>{documents.length} Docs en mémoire</span>
-              {showKB ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              <Database size={9} />
+              {documents.length} doc{documents.length !== 1 ? "s" : ""} en mémoire
+              {showKB ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
             </button>
           </div>
         </div>
 
-        <div className="flex bg-slate-800 p-1 rounded-lg">
-          {[1, 2, 3].map(l => (
+        {/* Level selector */}
+        <div
+          className="flex items-center rounded-lg overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          {levels.map((l) => (
             <button
-              key={l}
-              onClick={() => setLevel(l)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                level === l ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
+              key={l.id}
+              onClick={() => setLevel(l.id)}
+              className="px-2.5 py-1 text-[11px] font-semibold transition-all duration-150"
+              style={{
+                color: level === l.id ? "white" : "rgba(255,255,255,0.35)",
+                background: level === l.id ? l.color : "transparent",
+              }}
             >
-              N{l}
+              N{l.id}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Panneau de la base de connaissances (Knowledge Base Tray) */}
+      {/* Knowledge base panel */}
       {showKB && (
-        <div className="bg-slate-900/90 border-b border-slate-800 p-3 flex flex-wrap gap-2 animate-in slide-in-from-top duration-300">
-          {documents.map(doc => (
-            <div key={doc.id} className="flex items-center space-x-2 px-2 py-1 bg-slate-800 border border-slate-700 rounded-md">
-              <FileText size={12} className="text-brand-primary" />
-              <span className="text-[10px] text-slate-300 truncate max-w-[120px]">{doc.name}</span>
-            </div>
-          ))}
-          {documents.length === 0 && <span className="text-[10px] text-slate-500 italic">Aucun document chargé...</span>}
+        <div
+          className="px-4 py-3 flex flex-wrap gap-1.5 shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
+        >
+          {documents.length === 0 ? (
+            <span className="text-[11px] italic" style={{ color: "rgba(255,255,255,0.3)" }}>
+              Aucun document en mémoire
+            </span>
+          ) : (
+            documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md"
+                style={{
+                  background: "rgba(59,130,246,0.08)",
+                  border: "1px solid rgba(59,130,246,0.15)",
+                }}
+              >
+                <FileText size={9} className="text-blue-400 shrink-0" />
+                <span className="text-[10px] font-medium truncate max-w-[100px]" style={{ color: "rgba(147,197,253,0.8)" }}>
+                  {doc.name}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       )}
 
-      {/* Zone des messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-transparent to-slate-900/20">
-        {messages.map((m) => (
-          <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${
-              m.role === 'user' ? 'bg-brand-primary text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 border border-slate-700/50 rounded-tl-none'
-            }`}>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+      {/* Level description bar */}
+      {!compact && (
+        <div
+          className="px-4 py-2 shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
+            background: `${currentLevel.color}08`,
+          }}
+        >
+          <p className="text-[10px] font-semibold" style={{ color: `${currentLevel.color}cc` }}>
+            N{currentLevel.id} · {currentLevel.label} — {currentLevel.desc}
+          </p>
+        </div>
+      )}
+
+      {/* Messages */}
+      <ScrollArea className="flex-1 px-4 py-4">
+        <div className="space-y-4">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}
+            >
+              <div className={cn("flex items-end gap-2", m.role === "user" ? "flex-row-reverse" : "flex-row")}>
+                {/* Avatar */}
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mb-0.5"
+                  style={m.role === "assistant"
+                    ? { background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.2)" }
+                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }
+                  }
+                >
+                  {m.role === "assistant"
+                    ? <Bot size={11} className="text-blue-400" />
+                    : <User size={11} style={{ color: "rgba(255,255,255,0.5)" }} />
+                  }
+                </div>
+
+                {/* Bubble */}
+                <div
+                  className="max-w-[80%] rounded-xl text-[13px] leading-relaxed overflow-hidden"
+                  style={m.role === "user"
+                    ? {
+                      background: "#3b82f6",
+                      borderRadius: "12px 4px 12px 12px",
+                      color: "rgba(255,255,255,0.95)",
+                    }
+                    : {
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "4px 12px 12px 12px",
+                      color: "rgba(255,255,255,0.85)",
+                    }
+                  }
+                >
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+
+                  {/* File download button */}
+                  {m.file && (
+                    <button
+                      onClick={() => {
+                        const byteChars = atob(m.file!.base64);
+                        const byteNums = Array.from(byteChars, (c) => c.charCodeAt(0));
+                        const blob = new Blob([new Uint8Array(byteNums)], { type: m.file!.mimeType });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = m.file!.filename;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="mt-2.5 flex items-center gap-2 w-full px-3 py-2 rounded-lg transition-all duration-150 hover:opacity-80"
+                      style={{
+                        background: m.file.type === "xlsx"
+                          ? "rgba(16,185,129,0.12)"
+                          : "rgba(59,130,246,0.12)",
+                        border: `1px solid ${m.file.type === "xlsx" ? "rgba(16,185,129,0.25)" : "rgba(59,130,246,0.25)"}`,
+                      }}
+                    >
+                      {m.file.type === "xlsx"
+                        ? <FileSpreadsheet size={13} className="text-emerald-400 shrink-0" />
+                        : <FileText size={13} className="text-blue-400 shrink-0" />
+                      }
+                      <span
+                        className="text-[11px] font-medium flex-1 text-left truncate"
+                        style={{ color: m.file.type === "xlsx" ? "rgba(110,231,183,0.9)" : "rgba(147,197,253,0.9)" }}
+                      >
+                        {m.file.filename}
+                      </span>
+                      <Download size={11} style={{ color: "rgba(255,255,255,0.4)" }} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <span
+                className="text-[9px] font-medium mt-1 mx-8"
+                style={{ color: "rgba(255,255,255,0.2)" }}
+              >
+                {m.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
             </div>
-            <span className="mt-1 text-[9px] text-slate-600 uppercase font-bold tracking-widest">
-              {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-        ))}
-        {isTyping && (
-          <div className="flex items-center space-x-2 text-slate-500 italic text-xs animate-pulse">
-            <Loader2 size={14} className="animate-spin" />
-            <span>Flash 3 parcourt votre base perpétuelle...</span>
+          ))}
+
+          {isTyping && <TypingIndicator />}
+          <div ref={chatEndRef} />
+        </div>
+      </ScrollArea>
+
+      {/* Input area */}
+      <div
+        className="px-3 pb-3 pt-2.5 shrink-0"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {level === 3 && (
+          <div
+            className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.18)" }}
+          >
+            <AlertTriangle size={11} className="text-amber-400 shrink-0" />
+            <p className="text-[10px] font-medium text-amber-400">
+              Mode Action — Toute action requiert votre validation explicite
+            </p>
           </div>
         )}
-        <div ref={chatEndRef} />
-      </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/80">
-        <div className="relative flex items-center">
-          <input
-            type="text"
+        <div
+          className="flex items-end gap-2 rounded-xl px-3 py-2.5"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Posez une question sur n'importe quel document déposé..."
-            className="w-full pl-4 pr-12 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand-primary/50 text-sm"
+            onKeyDown={handleKeyDown}
+            placeholder="Posez une question sur vos documents…"
+            rows={1}
+            disabled={isTyping}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-[13px] placeholder:font-normal"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              maxHeight: "120px",
+              fontFamily: "inherit",
+            }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            className="absolute right-2 p-2.5 bg-brand-primary text-white rounded-xl disabled:bg-slate-800 disabled:text-slate-600 transition-all"
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150 disabled:opacity-30"
+            style={{
+              background: input.trim() && !isTyping ? "#3b82f6" : "rgba(255,255,255,0.07)",
+            }}
           >
-            <Send size={20} />
+            <Send size={12} className="text-white" />
           </button>
         </div>
+
+        <p className="text-[10px] text-center mt-2" style={{ color: "rgba(255,255,255,0.18)" }}>
+          Entrée pour envoyer · Maj+Entrée pour nouvelle ligne
+        </p>
       </div>
     </div>
   );
-};
-
-export default ChatInterface;
+}
