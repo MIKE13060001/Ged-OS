@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const gemini = new GeminiService();
     const lastUserMessage = [...history].reverse().find((m) => m.role === "user")?.content || "";
 
-    // Check if this is a file generation request
+    // File generation
     if (mightBeFileRequest(lastUserMessage)) {
       try {
         const validDocs = (documents || []).filter(
@@ -35,32 +35,24 @@ export async function POST(req: NextRequest) {
           .map((d: { name: string; ocrText: string }) => `[SOURCE: ${d.name}]\n${d.ocrText}\n---`)
           .join("\n\n");
 
-        const fileResult = await gemini.generateFileData(lastUserMessage, knowledgeBase);
-        console.log('[GEDOS] generateFileData result:', fileResult.fileType, fileResult.filename);
+        const { sheets, filename, textResponse } = await gemini.generateFileFromRequest(
+          lastUserMessage,
+          knowledgeBase
+        );
 
-        let generated;
-        if (fileResult.fileType === "xlsx" && fileResult.xlsxData) {
-          generated = generateExcel(fileResult.xlsxData, fileResult.filename);
-        } else if (fileResult.fileType === "docx" && fileResult.docxData) {
-          generated = await generateDocx(
-            fileResult.docxData as Parameters<typeof generateDocx>[0],
-            fileResult.filename
-          );
-        }
+        const generated = generateExcel(sheets, filename);
 
-        if (generated) {
-          return NextResponse.json({
-            text: fileResult.textResponse,
-            file: {
-              base64: generated.base64,
-              mimeType: generated.mimeType,
-              filename: generated.filename,
-              type: generated.type,
-            },
-          });
-        }
+        return NextResponse.json({
+          text: textResponse,
+          file: {
+            base64: generated.base64,
+            mimeType: generated.mimeType,
+            filename: generated.filename,
+            type: generated.type,
+          },
+        });
       } catch (fileError) {
-        console.error("[GEDOS] File generation failed, falling back to chat:", fileError);
+        console.error("[GEDOS] File generation error (falling back to chat):", fileError);
       }
     }
 
