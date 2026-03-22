@@ -233,14 +233,47 @@ RÈGLES ABSOLUES :
     return response;
   }
 
-  async transcribeAudio(audioBase64: string) {
+  async transcribeAudio(audioBase64: string, synthesisType: string = 'transcription', mimeType: string = 'audio/mp3') {
     const ai = this.getAI();
+
+    const prompts: Record<string, string> = {
+      'transcription': "Transcris précisément l'intégralité de cet enregistrement audio en français. Préserve la ponctuation naturelle.",
+      'cr-reunion': `Transcris puis rédige un compte rendu de réunion structuré en français avec les sections suivantes :
+## Participants
+## Ordre du jour
+## Points abordés
+## Décisions prises
+## Actions à mener (qui fait quoi, échéance)
+## Prochaine réunion`,
+      'synthese-rh': `Transcris puis rédige une synthèse RH structurée en français avec les sections suivantes :
+## Contexte de l'entretien
+## Points forts identifiés
+## Axes d'amélioration
+## Compétences clés évoquées
+## Décisions / Recommandations
+## Prochaines étapes`,
+      'resume-client': `Transcris puis rédige un résumé client structuré en français avec les sections suivantes :
+## Contexte client
+## Besoins exprimés
+## Objections / Points de friction
+## Solutions évoquées
+## Engagements pris
+## Prochaines étapes`,
+      'liste-actions': `Transcris puis extrais uniquement la liste d'actions concrètes mentionnées dans cet enregistrement.
+Format pour chaque action :
+- [ ] **Action** — Responsable : [nom ou "non précisé"] — Échéance : [date ou "non précisée"]
+
+Groupe les actions par thématique si pertinent.`,
+    };
+
+    const prompt = prompts[synthesisType] ?? prompts['transcription'];
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { inlineData: { data: audioBase64, mimeType: 'audio/mp3' } },
-          { text: "Transcris et résume précisément." }
+          { inlineData: { data: audioBase64, mimeType } },
+          { text: prompt }
         ]
       },
     });
