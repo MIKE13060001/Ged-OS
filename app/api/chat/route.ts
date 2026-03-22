@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     const gemini = new GeminiService();
     const lastUserMessage = [...history].reverse().find((m) => m.role === "user")?.content || "";
 
+    console.log('[GEDOS] Chat request, lastMsg:', lastUserMessage.slice(0, 80));
+    console.log('[GEDOS] mightBeFileRequest:', mightBeFileRequest(lastUserMessage));
+
     // Check if this might be a file generation request
     if (mightBeFileRequest(lastUserMessage)) {
       const validDocs = (documents || []).filter(

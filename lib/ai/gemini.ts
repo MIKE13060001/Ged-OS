@@ -120,64 +120,49 @@ export class GeminiService {
   }> {
     const ai = this.getAI();
 
+    const prompt = `Tu es un générateur de fichiers structurés (Excel/Word) basé sur cette base de connaissances :
+${knowledgeBase || "(aucun document - utilise des données génériques pertinentes)"}
+
+DEMANDE UTILISATEUR : "${userMessage}"
+
+L'utilisateur demande de créer un fichier. Génère les données pour ce fichier.
+
+Détermine le type (xlsx ou docx) selon la demande :
+- Excel / tableau / données / chiffres → xlsx
+- Rapport / document / texte structuré → docx
+
+Retourne UNIQUEMENT ce JSON (sans markdown, sans commentaires) :
+
+Pour xlsx :
+{"isFileRequest":true,"fileType":"xlsx","filename":"export.xlsx","textResponse":"Votre fichier Excel a été généré.","xlsxData":[{"name":"Feuille1","headers":["Colonne A","Colonne B"],"rows":[["val1","val2"]]}]}
+
+Pour docx :
+{"isFileRequest":true,"fileType":"docx","filename":"rapport.docx","textResponse":"Votre document Word a été généré.","docxData":[{"type":"heading1","text":"Titre"},{"type":"paragraph","text":"Contenu..."}]}
+
+Si ce n'est vraiment pas une demande de fichier :
+{"isFileRequest":false}`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [{
-        role: 'user',
-        parts: [{ text: `Tu es GEDOS-ARCHITECT avec accès à cette base de connaissances :
-${knowledgeBase || "VIDE"}
-
-MESSAGE UTILISATEUR : "${userMessage}"
-
-Détermine si l'utilisateur demande de CRÉER un fichier (Excel, DOCX, CSV, tableau, rapport, etc.).
-
-Si OUI, génère les données structurées pour ce fichier en JSON STRICT :
-
-Pour un fichier EXCEL (xlsx) :
-{
-  "isFileRequest": true,
-  "fileType": "xlsx",
-  "filename": "nom-du-fichier.xlsx",
-  "textResponse": "Message à afficher à l'utilisateur expliquant ce qui a été généré",
-  "xlsxData": [
-    {
-      "name": "Nom de l'onglet",
-      "headers": ["Colonne 1", "Colonne 2", "..."],
-      "rows": [["valeur1", "valeur2"], ["valeur3", "valeur4"]]
-    }
-  ]
-}
-
-Pour un fichier WORD (docx) :
-{
-  "isFileRequest": true,
-  "fileType": "docx",
-  "filename": "nom-du-fichier.docx",
-  "textResponse": "Message à afficher à l'utilisateur expliquant ce qui a été généré",
-  "docxData": [
-    {"type": "heading1", "text": "Titre principal"},
-    {"type": "heading2", "text": "Sous-titre"},
-    {"type": "paragraph", "text": "Paragraphe de texte..."},
-    {"type": "table", "headers": ["Col1", "Col2"], "rows": [["val1", "val2"]]}
-  ]
-}
-
-Si NON (question normale) :
-{"isFileRequest": false}
-
-RÉPONDS UNIQUEMENT EN JSON VALIDE. PAS DE COMMENTAIRES. PAS DE MARKDOWN.` }]
-      }],
-      config: { temperature: 0.1 }
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      }
     });
 
     const raw = response.text || '{"isFileRequest": false}';
+    console.log('[GEDOS] File detection raw response (first 200):', raw.slice(0, 200));
     try {
       const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
       const firstBrace = cleaned.indexOf('{');
       const lastBrace = cleaned.lastIndexOf('}');
       const json = cleaned.substring(firstBrace, lastBrace + 1);
-      return JSON.parse(json);
-    } catch {
+      const parsed = JSON.parse(json);
+      console.log('[GEDOS] File detection result:', parsed.isFileRequest, parsed.fileType);
+      return parsed;
+    } catch (err) {
+      console.error('[GEDOS] File detection JSON parse error:', err, 'raw:', raw.slice(0, 300));
       return { isFileRequest: false };
     }
   }
