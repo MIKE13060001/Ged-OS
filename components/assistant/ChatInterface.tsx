@@ -153,35 +153,6 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  const downloadExcel = async (messageId: string, action: ExcelAction) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === messageId ? { ...m, downloading: true } : m))
-    );
-    try {
-      const res = await fetch("/api/export/excel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: action.data, filename: action.filename }),
-      });
-      if (!res.ok) throw new Error("Export failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = action.filename.endsWith(".xlsx") ? action.filename : `${action.filename}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent — user sees the button to retry
-    } finally {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, downloading: false } : m))
-      );
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
