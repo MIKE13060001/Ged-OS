@@ -38,18 +38,6 @@ export function generateExcel(
     const wsData = [sheet.headers, ...sheet.rows];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Bold header row styling
-    const headerRange = XLSX.utils.decode_range(ws["!ref"] || "A1");
-    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
-      if (!ws[cellRef]) continue;
-      ws[cellRef].s = {
-        font: { bold: true, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "1E3A5F" } },
-        alignment: { horizontal: "center" },
-      };
-    }
-
     // Auto column widths
     const colWidths = sheet.headers.map((h, i) => ({
       wch: Math.max(
@@ -62,8 +50,8 @@ export function generateExcel(
     XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31));
   }
 
-  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-  const base64 = Buffer.from(buffer).toString("base64");
+  // Use type:"base64" directly to avoid V8 heap corruption with type:"buffer"
+  const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
 
   return {
     base64,
