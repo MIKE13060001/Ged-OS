@@ -14,6 +14,8 @@ function mightBeFileRequest(message: string): boolean {
 }
 
 const EXCEL_TRIGGER = "##EXCEL_DATA##";
+const SVG_TRIGGER = "##SVG_CHART##";
+const ACTION_TRIGGER = "##ACTION##";
 
 function parseExcelAction(text: string): {
   text: string;
@@ -88,7 +90,38 @@ export async function POST(req: NextRequest) {
 
     // Normal chat response
     const response = await gemini.chat(history, level || 1, documents || []);
-    return NextResponse.json({ text: response.text });
+    const rawText = response.text || "";
+
+    // Parse SVG chart marker
+    const svgIdx = rawText.indexOf(SVG_TRIGGER);
+    if (svgIdx !== -1) {
+      const beforeSvg = rawText.substring(0, svgIdx).trim();
+      const svgContent = rawText.substring(svgIdx + SVG_TRIGGER.length).trim();
+      return NextResponse.json({ text: beforeSvg || "Voici votre graphique.", chart: svgContent });
+    }
+
+    // Parse N3 action marker
+    const actionIdx = rawText.indexOf(ACTION_TRIGGER);
+    if (actionIdx !== -1) {
+      const beforeAction = rawText.substring(0, actionIdx).trim();
+      const afterAction = rawText.substring(actionIdx + ACTION_TRIGGER.length).trim();
+      try {
+        const jsonMatch = afterAction.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const action = JSON.parse(jsonMatch[0]);
+          if (action.type && action.explanation && action.payload) {
+            return NextResponse.json({
+              text: beforeAction || "Une action est prête à être exécutée.",
+              action,
+            });
+          }
+        }
+      } catch {
+        // fallback to plain text
+      }
+    }
+
+    return NextResponse.json({ text: rawText });
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(

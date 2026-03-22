@@ -1,69 +1,98 @@
+"use client";
 
-import React from 'react';
-import { Mail, Check, X, AlertTriangle, ChevronRight } from 'lucide-react';
+import React from "react";
+import { Mail, FolderPlus, Plug, Check, X, AlertTriangle, ChevronRight } from "lucide-react";
 
-interface ActionApprovalProps {
-  type: 'email' | 'folder' | 'api';
-  payload: any;
+export interface ActionPayload {
+  type: "email" | "folder" | "api";
   explanation: string;
+  payload: Record<string, string>;
+}
+
+interface ActionApprovalProps extends ActionPayload {
   onApprove: () => void;
   onReject: () => void;
 }
 
-const ActionApproval: React.FC<ActionApprovalProps> = ({ type, payload, explanation, onApprove, onReject }) => {
+const TYPE_META = {
+  email: { icon: Mail, label: "Envoi d'email", color: "#3b82f6", bg: "rgba(59,130,246,0.1)", border: "rgba(59,130,246,0.25)" },
+  folder: { icon: FolderPlus, label: "Création de dossier", color: "#10b981", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.25)" },
+  api: { icon: Plug, label: "Appel API externe", color: "#8b5cf6", bg: "rgba(139,92,246,0.1)", border: "rgba(139,92,246,0.25)" },
+};
+
+export function ActionApproval({ type, explanation, payload, onApprove, onReject }: ActionApprovalProps) {
+  const meta = TYPE_META[type] ?? TYPE_META.api;
+  const Icon = meta.icon;
+
   return (
-    <div className="bg-slate-900 border-2 border-brand-primary/30 rounded-2xl overflow-hidden shadow-2xl my-4">
-      <div className="bg-brand-primary/10 px-6 py-4 flex items-center justify-between border-b border-brand-primary/20">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-brand-primary rounded-lg text-white">
-            {type === 'email' && <Mail size={18} />}
-            {type === 'folder' && <Check size={18} />}
+    <div
+      className="mt-2.5 rounded-xl overflow-hidden"
+      style={{ border: "1px solid rgba(245,158,11,0.25)", background: "rgba(245,158,11,0.04)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: "1px solid rgba(245,158,11,0.15)", background: "rgba(245,158,11,0.06)" }}
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className="w-5 h-5 rounded-md flex items-center justify-center"
+            style={{ background: meta.bg, border: `1px solid ${meta.border}` }}
+          >
+            <Icon size={11} style={{ color: meta.color }} />
           </div>
-          <span className="font-bold text-brand-primary uppercase tracking-wider text-xs">Action suggérée - Niveau 3</span>
+          <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
+            Action N3 · {meta.label}
+          </span>
         </div>
-        <div className="flex items-center text-amber-500 text-xs font-semibold">
-          <AlertTriangle size={14} className="mr-1" />
-          Approbation requise
+        <div className="flex items-center gap-1 text-amber-400">
+          <AlertTriangle size={10} />
+          <span className="text-[10px] font-semibold">Approbation requise</span>
         </div>
       </div>
-      
-      <div className="p-6">
-        <p className="text-slate-200 text-sm mb-6 leading-relaxed">
+
+      {/* Body */}
+      <div className="px-3 py-2.5 space-y-2.5">
+        <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
           {explanation}
         </p>
-        
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 font-mono text-xs text-slate-400">
-          <div className="flex justify-between border-b border-slate-800 pb-2 mb-2">
-            <span>DÉTAILS DE L'ACTION</span>
-            <span className="text-slate-600">ID: ACT-4821</span>
-          </div>
-          {Object.entries(payload).map(([key, val]: [string, any]) => (
-            <div key={key} className="flex py-1">
-              <span className="w-20 text-slate-500 uppercase">{key}:</span>
-              <span className="flex-1 text-slate-300 break-all">{val.toString()}</span>
+
+        {/* Payload */}
+        <div
+          className="rounded-lg px-3 py-2 text-[10px] font-mono space-y-1"
+          style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          {Object.entries(payload).map(([k, v]) => (
+            <div key={k} className="flex gap-2">
+              <span className="uppercase shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>{k}</span>
+              <ChevronRight size={9} className="shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }} />
+              <span className="break-all" style={{ color: "rgba(255,255,255,0.7)" }}>{v}</span>
             </div>
           ))}
         </div>
 
-        <div className="flex space-x-3">
-          <button 
+        {/* Buttons */}
+        <div className="flex gap-2">
+          <button
             onClick={onReject}
-            className="flex-1 px-4 py-2.5 border border-slate-700 hover:border-red-500/50 hover:bg-red-500/5 text-slate-400 hover:text-red-400 rounded-xl font-semibold transition-all flex items-center justify-center"
+            className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
+            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171" }}
           >
-            <X size={18} className="mr-2" />
+            <X size={12} />
             Rejeter
           </button>
-          <button 
+          <button
             onClick={onApprove}
-            className="flex-1 px-4 py-2.5 bg-brand-primary hover:bg-brand-hover text-white rounded-xl font-bold flex items-center justify-center shadow-lg shadow-brand-primary/20 transition-all"
+            className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[11px] font-bold transition-all hover:opacity-90"
+            style={{ background: "#f59e0b", color: "#000" }}
           >
-            <Check size={18} className="mr-2" />
+            <Check size={12} />
             Approuver
           </button>
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default ActionApproval;

@@ -17,8 +17,10 @@ import {
   BarChart2,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
+import { useAuditStore } from "@/stores/auditStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { ActionApproval, type ActionPayload } from "@/components/assistant/ActionApproval";
 
 interface FileAttachment {
   base64: string;
@@ -35,6 +37,7 @@ interface Message {
   timestamp: Date;
   file?: FileAttachment;
   chart?: string; // SVG string
+  action?: ActionPayload & { status?: "pending" | "approved" | "rejected" };
 }
 
 const levels = [
@@ -80,6 +83,7 @@ function TypingIndicator() {
 
 export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const documents = useDocumentStore((state) => state.documents);
+  const logEvent = useAuditStore((state) => state.logEvent);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -143,6 +147,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
           timestamp: new Date(),
           file: data.file || undefined,
           chart: data.chart || undefined,
+          action: data.action ? { ...data.action, status: "pending" } : undefined,
         },
       ]);
     } catch {
@@ -365,6 +370,43 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
                       }}
                       dangerouslySetInnerHTML={{ __html: m.chart }}
                     />
+                  )}
+
+                  {/* N3 Action Approval */}
+                  {m.action && m.action.status === "pending" && (
+                    <ActionApproval
+                      type={m.action.type}
+                      explanation={m.action.explanation}
+                      payload={m.action.payload}
+                      onApprove={() => {
+                        logEvent({ action: "Action N3 approuvée", detail: `${m.action!.type} — ${m.action!.explanation}`, status: "success", user: "Utilisateur local" });
+                        setMessages((prev) => prev.map((msg) =>
+                          msg.id === m.id
+                            ? { ...msg, action: { ...msg.action!, status: "approved" }, content: msg.content + "\n\n✅ Action approuvée et exécutée." }
+                            : msg
+                        ));
+                      }}
+                      onReject={() => {
+                        logEvent({ action: "Action N3 rejetée", detail: `${m.action!.type} — ${m.action!.explanation}`, status: "warning", user: "Utilisateur local" });
+                        setMessages((prev) => prev.map((msg) =>
+                          msg.id === m.id
+                            ? { ...msg, action: { ...msg.action!, status: "rejected" }, content: msg.content + "\n\n❌ Action rejetée." }
+                            : msg
+                        ));
+                      }}
+                    />
+                  )}
+                  {m.action && m.action.status !== "pending" && (
+                    <div
+                      className="mt-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold"
+                      style={{
+                        background: m.action.status === "approved" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.08)",
+                        border: `1px solid ${m.action.status === "approved" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.15)"}`,
+                        color: m.action.status === "approved" ? "#34d399" : "#f87171",
+                      }}
+                    >
+                      {m.action.status === "approved" ? "✅ Action exécutée" : "❌ Action rejetée"}
+                    </div>
                   )}
                 </div>
               </div>
