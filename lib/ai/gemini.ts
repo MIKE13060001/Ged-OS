@@ -209,35 +209,6 @@ RÈGLES ABSOLUES :
     - Ne mets RIEN après le JSON
     - N'utilise jamais ce format pour autre chose que les demandes Excel explicites
 
-    GÉNÉRATION DE GRAPHIQUES SVG :
-    Quand l'utilisateur demande un graphique (camembert, histogramme, barres, courbe) :
-    1. Génère une courte introduction textuelle.
-    2. Ajoute EXACTEMENT le marqueur ##SVG_CHART## sur une nouvelle ligne.
-    3. Suivi IMMÉDIATEMENT d'un SVG valide (viewBox="0 0 400 300", largeur max 400px).
-    4. Style sombre : fond transparent, couleurs vives (#3b82f6 #10b981 #f59e0b #ef4444 #8b5cf6).
-    5. Inclure une légende textuelle lisible directement dans le SVG.
-    6. Ne mets RIEN après le SVG.
-
-    ACTIONS N3 (uniquement si l'utilisateur demande une action concrète comme envoyer un email, créer un dossier, appeler une API) :
-    1. Génère une courte introduction (1-2 phrases max).
-    2. Ajoute EXACTEMENT le marqueur ##ACTION## sur une nouvelle ligne.
-    3. Suivi IMMÉDIATEMENT d'un JSON valide sur une seule ligne :
-       {"type":"email"|"folder"|"api","explanation":"Explication courte de l'action","payload":{"clé":"valeur",...}}
-    RÈGLES CRITIQUES pour les actions :
-    - Le JSON doit être sur UNE SEULE ligne après ##ACTION##
-    - Ne génère ce format QUE si une action concrète est demandée (pas pour des questions)
-    - Pour type "email" : payload doit contenir "to", "subject", "body"
-    - Pour type "folder" : payload doit contenir "name", "path"
-    - Pour type "api" : payload doit contenir "endpoint", "method", "description"
-    - Ne mets RIEN après le JSON
-
-    COMPARAISON DE DOCUMENTS :
-    Quand l'utilisateur demande de comparer des documents, structure ta réponse ainsi :
-    ## Points communs
-    ## Différences clés
-    ## Synthèse comparative
-    Cite toujours le document source entre [crochets].
-
     EXEMPLE de réponse Excel :
     J'ai extrait les données en 10 lignes depuis vos documents.
     ##EXCEL_DATA##
@@ -266,36 +237,43 @@ RÈGLES ABSOLUES :
     const ai = this.getAI();
 
     const prompts: Record<string, string> = {
-      'transcription': "Transcris précisément l'intégralité de cet enregistrement audio en français. Préserve la ponctuation naturelle.",
-      'cr-reunion': `Transcris puis rédige un compte rendu de réunion structuré en français avec les sections suivantes :
-## Participants
-## Ordre du jour
-## Points abordés
-## Décisions prises
-## Actions à mener (qui fait quoi, échéance)
-## Prochaine réunion`,
-      'synthese-rh': `Transcris puis rédige une synthèse RH structurée en français avec les sections suivantes :
-## Contexte de l'entretien
-## Points forts identifiés
-## Axes d'amélioration
-## Compétences clés évoquées
-## Décisions / Recommandations
-## Prochaines étapes`,
-      'resume-client': `Transcris puis rédige un résumé client structuré en français avec les sections suivantes :
-## Contexte client
-## Besoins exprimés
-## Objections / Points de friction
-## Solutions évoquées
-## Engagements pris
-## Prochaines étapes`,
-      'liste-actions': `Transcris puis extrais uniquement la liste d'actions concrètes mentionnées dans cet enregistrement.
-Format pour chaque action :
-- [ ] **Action** — Responsable : [nom ou "non précisé"] — Échéance : [date ou "non précisée"]
+      'transcription': `Transcris intégralement cet enregistrement audio. Garde le texte fidèle mot à mot, avec la ponctuation et les paragraphes. Ne résume pas, ne reformule pas.`,
+      'cr-reunion': `Tu es un assistant spécialisé en comptes-rendus de réunion.
+À partir de cet enregistrement audio, génère un compte-rendu structuré avec :
+- **Date & Participants** (si mentionnés)
+- **Ordre du jour**
+- **Points abordés** (chaque point en paragraphe)
+- **Décisions prises**
+- **Actions à mener** (avec responsable et échéance si mentionnés)
+Style professionnel, concis, factuel.`,
+      'synthese-rh': `Tu es un expert RH. À partir de cet enregistrement audio, produis une synthèse RH structurée :
+- **Contexte** (type d'entretien : embauche, évaluation, disciplinaire, etc.)
+- **Profil concerné** (si mentionné)
+- **Points clés abordés**
+- **Évaluation / Observations**
+- **Recommandations**
+- **Suivi nécessaire**
+Ton neutre et professionnel. Respecte la confidentialité.`,
+      'resume-client': `Tu es un commercial expert. À partir de cet enregistrement audio, génère un résumé client :
+- **Client** (nom, entreprise si mentionnés)
+- **Objet de l'échange**
+- **Besoins exprimés**
+- **Propositions faites**
+- **Objections / Réserves**
+- **Prochaines étapes**
+- **Température du deal** (chaud / tiède / froid)
+Concis, orienté action.`,
+      'liste-actions': `À partir de cet enregistrement audio, extrais UNIQUEMENT la liste des actions à réaliser :
+Pour chaque action, indique :
+- ☐ **Action** : description claire
+- **Responsable** : (si mentionné, sinon "À définir")
+- **Échéance** : (si mentionnée, sinon "À définir")
+- **Priorité** : Haute / Moyenne / Basse
 
-Groupe les actions par thématique si pertinent.`,
+Trie par priorité. Ne mets aucun texte d'introduction ou de conclusion, uniquement la liste.`,
     };
 
-    const prompt = prompts[synthesisType] ?? prompts['transcription'];
+    const prompt = prompts[synthesisType] || prompts['transcription'];
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

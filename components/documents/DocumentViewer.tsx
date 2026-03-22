@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
-import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check, History, UploadCloud } from "lucide-react";
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
-import { useAuditStore } from "@/stores/auditStore";
-import { RoleGate } from "@/components/auth/RoleGate";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -25,72 +22,9 @@ function openInNewTab(previewUrl: string) {
 }
 
 export function DocumentViewer() {
-  const { selectedDocument: doc, setSelectedDocument, removeDocument, updateDocument, addVersion, versions } = useDocumentStore();
-  const { logEvent } = useAuditStore();
-  const versionInputRef = useRef<HTMLInputElement>(null);
-  const docVersions = doc ? (versions[doc.id] ?? []) : [];
+  const { selectedDocument: doc, setSelectedDocument, removeDocument } = useDocumentStore();
   const isImage = doc?.mimeType.startsWith("image/");
   const isPdf = doc?.mimeType === "application/pdf";
-
-  // Tag editing state
-  const [newTag, setNewTag] = useState("");
-  const [editingName, setEditingName] = useState(false);
-  const [nameValue, setNameValue] = useState("");
-
-  function addTag() {
-    const tag = newTag.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!tag || !doc) return;
-    if (doc.tags?.includes(tag)) { setNewTag(""); return; }
-    updateDocument(doc.id, { tags: [...(doc.tags ?? []), tag] });
-    setNewTag("");
-  }
-
-  function removeTag(tag: string) {
-    if (!doc) return;
-    updateDocument(doc.id, { tags: doc.tags.filter(t => t !== tag) });
-  }
-
-  function handleTagKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); }
-  }
-
-  function startEditName() {
-    if (!doc) return;
-    setNameValue(doc.name);
-    setEditingName(true);
-  }
-
-  function saveName() {
-    const name = nameValue.trim();
-    if (name && doc) updateDocument(doc.id, { name });
-    setEditingName(false);
-  }
-
-  function handleNewVersion(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !doc) return;
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onloadend = () => {
-      const previewUrl = reader.result as string;
-      const newVersion: import("@/types/database").Document = {
-        ...doc,
-        id: crypto.randomUUID(),
-        originalName: file.name,
-        name: doc.name,
-        mimeType: file.type || doc.mimeType,
-        sizeBytes: file.size,
-        previewUrl,
-        version: doc.version + 1,
-        ocrStatus: "pending",
-        ocrText: undefined,
-        tags: doc.tags,
-        createdAt: new Date().toISOString(),
-      };
-      addVersion(doc.id, newVersion);
-    };
-    e.target.value = "";
-  }
 
   function handleDownload() {
     if (!doc?.previewUrl) return;
@@ -101,7 +35,6 @@ export function DocumentViewer() {
     a.download = doc.originalName || doc.name;
     a.click();
     URL.revokeObjectURL(url);
-    logEvent({ action: "Document téléchargé", detail: doc.name, status: "success", user: "Utilisateur local" });
   }
 
   async function handleShare() {
@@ -126,7 +59,6 @@ export function DocumentViewer() {
 
   return (
     <Sheet open={!!doc} onOpenChange={(open) => !open && setSelectedDocument(null)}>
-      <SheetTitle className="sr-only">Visualiseur de document</SheetTitle>
       <SheetContent
         side="right"
         className="w-[520px] sm:max-w-[520px] p-0 flex flex-col"
@@ -151,31 +83,10 @@ export function DocumentViewer() {
                 >
                   <FileText size={15} className="text-blue-400" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  {editingName ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        autoFocus
-                        value={nameValue}
-                        onChange={e => setNameValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
-                        className="text-[13px] font-semibold bg-transparent outline-none border-b text-white/90 w-full"
-                        style={{ borderColor: "rgba(59,130,246,0.5)" }}
-                      />
-                      <button onClick={saveName} className="shrink-0 text-blue-400 hover:text-blue-300">
-                        <Check size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 group/name">
-                      <p className="text-[13px] font-semibold text-white/90 truncate" title={doc.name}>
-                        {doc.name}
-                      </p>
-                      <button onClick={startEditName} className="opacity-0 group-hover/name:opacity-100 transition-opacity text-white/30 hover:text-white/60">
-                        <Pencil size={11} />
-                      </button>
-                    </div>
-                  )}
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-white/90 truncate" title={doc.name}>
+                    {doc.name}
+                  </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span
                       className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
@@ -290,118 +201,41 @@ export function DocumentViewer() {
                   ))}
                 </div>
 
-                {/* Tags — édition manuelle */}
-                <div
-                  className="rounded-xl p-4"
-                  style={{
-                    background: "rgba(59,130,246,0.05)",
-                    border: "1px solid rgba(59,130,246,0.12)",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-3">
-                    <Tag size={11} className="text-blue-400" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(59,130,246,0.8)" }}>
-                      Tags
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {(doc.tags ?? []).map((tag) => (
-                      <span
-                        key={tag}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide group/tag"
-                        style={{
-                          background: "rgba(59,130,246,0.12)",
-                          color: "#60a5fa",
-                          border: "1px solid rgba(59,130,246,0.2)",
-                        }}
-                      >
-                        #{tag}
-                        <button
-                          onClick={() => removeTag(tag)}
-                          className="opacity-0 group-hover/tag:opacity-100 transition-opacity"
-                          style={{ color: "rgba(96,165,250,0.6)" }}
+                {/* AI tags */}
+                {doc.tags && doc.tags.length > 0 && (
+                  <div
+                    className="rounded-xl p-4"
+                    style={{
+                      background: "rgba(59,130,246,0.05)",
+                      border: "1px solid rgba(59,130,246,0.12)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <Tag size={11} className="text-blue-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(59,130,246,0.8)" }}>
+                        Synthèse sémantique IA
+                      </span>
+                    </div>
+                    <p className="text-[12px] leading-relaxed italic mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+                      &quot;Thématiques identifiées : {doc.tags.join(", ")}.&quot;
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {doc.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide"
+                          style={{
+                            background: "rgba(59,130,246,0.12)",
+                            color: "#60a5fa",
+                            border: "1px solid rgba(59,130,246,0.2)",
+                          }}
                         >
-                          <X size={9} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  {/* Add tag input */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Ajouter un tag…"
-                      value={newTag}
-                      onChange={e => setNewTag(e.target.value)}
-                      onKeyDown={handleTagKey}
-                      className="flex-1 h-6 px-2 rounded-md text-[11px] outline-none"
-                      style={{
-                        background: "rgba(59,130,246,0.08)",
-                        border: "1px solid rgba(59,130,246,0.2)",
-                        color: "rgba(255,255,255,0.7)",
-                        fontFamily: "inherit",
-                      }}
-                    />
-                    <button
-                      onClick={addTag}
-                      disabled={!newTag.trim()}
-                      className="w-6 h-6 rounded-md flex items-center justify-center transition-opacity disabled:opacity-30"
-                      style={{ background: "rgba(59,130,246,0.2)", color: "#60a5fa" }}
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Versioning */}
-                <div
-                  className="rounded-xl p-4"
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <History size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
-                        Versions
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => versionInputRef.current?.click()}
-                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-90"
-                      style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
-                    >
-                      <UploadCloud size={10} /> Nouvelle version
-                    </button>
-                    <input ref={versionInputRef} type="file" accept={doc.mimeType} className="hidden" onChange={handleNewVersion} />
-                  </div>
-                  {/* Version list */}
-                  <div className="space-y-1.5">
-                    {/* Current */}
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-[11px] font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>
-                        v{doc.version} <span className="text-[9px] font-normal ml-1" style={{ color: "rgba(255,255,255,0.3)" }}>(actuelle)</span>
-                      </span>
-                      <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
-                        {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
-                      </span>
-                    </div>
-                    {/* Previous versions */}
-                    {docVersions.slice().reverse().slice(0, 5).map((v) => (
-                      <div
-                        key={v.id}
-                        className="flex items-center justify-between py-1"
-                        style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
-                      >
-                        <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          v{v.version}
+                          #{tag}
                         </span>
-                        <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>
-                          {new Date(v.createdAt).toLocaleDateString("fr-FR")}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* OCR text */}
                 {doc.ocrText && (
@@ -444,15 +278,13 @@ export function DocumentViewer() {
               >
                 <Share2 size={13} /> Partager
               </button>
-              <RoleGate permission="deleteDocuments">
-                <button
-                  onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/[0.1]"
-                  style={{ color: "rgba(248,113,113,0.6)", border: "1px solid rgba(255,255,255,0.07)" }}
-                >
-                  <Trash2 size={13} />
-                </button>
-              </RoleGate>
+              <button
+                onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/[0.1]"
+                style={{ color: "rgba(248,113,113,0.6)", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <Trash2 size={13} />
+              </button>
             </div>
           </>
         )}

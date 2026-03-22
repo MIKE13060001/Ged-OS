@@ -1,11 +1,11 @@
 {
   "repoPath": "/Users/mikhaelstrentz/GEDOS-TEST-0",
-  "lastCommit": "34bbed18c8b4a3ba1a8545a17e74ad0c6d86a30a",
-  "indexedAt": "2026-03-22T15:59:13.029Z",
+  "lastCommit": "3848198dc2e6343ef5824605866cb26cd449c78d",
+  "indexedAt": "2026-03-22T16:12:29.654Z",
   "stats": {
     "files": 62,
-    "nodes": 184,
-    "edges": 327,
+    "nodes": 190,
+    "edges": 339,
     "communities": 6,
     "processes": 4,
     "embeddings": 0

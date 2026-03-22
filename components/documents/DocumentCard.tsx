@@ -1,15 +1,8 @@
 "use client";
 
-import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical, FileImage, FolderInput } from "lucide-react";
+import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical, FileImage } from "lucide-react";
 import { Document, OCRStatus } from "@/types/database";
 import { useDocumentStore } from "@/stores/documentStore";
-import { RoleGate } from "@/components/auth/RoleGate";
-import {
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 
 function openInNewTab(previewUrl: string) {
   const [header, base64] = previewUrl.split(",");
@@ -43,7 +36,7 @@ function getMimeIcon(mimeType: string) {
 }
 
 export function DocumentCard({ doc }: { doc: Document }) {
-  const { setSelectedDocument, removeDocument, folders, moveDocument } = useDocumentStore();
+  const { setSelectedDocument, removeDocument } = useDocumentStore();
   const status = statusConfig[doc.ocrStatus];
   const StatusIcon = status.icon;
   const { Icon: MimeIcon, color: mimeColor } = getMimeIcon(doc.mimeType);
@@ -119,50 +112,12 @@ export function DocumentCard({ doc }: { doc: Document }) {
               <DropdownMenuItem className="text-white/65 focus:text-white focus:bg-white/[0.05] text-[12px] gap-2 cursor-pointer">
                 <Download size={12} /> Télécharger
               </DropdownMenuItem>
-              {folders.length > 0 && (
-                <>
-                  <DropdownMenuSeparator style={{ background: "rgba(255,255,255,0.06)" }} />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="text-white/65 focus:text-white focus:bg-white/[0.05] text-[12px] gap-2 cursor-pointer">
-                      <FolderInput size={12} /> Déplacer vers
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent
-                      style={{
-                        background: "hsl(240 12% 9%)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
-                      }}
-                    >
-                      {doc.folderId && (
-                        <DropdownMenuItem
-                          className="text-white/65 focus:text-white focus:bg-white/[0.05] text-[12px] gap-2 cursor-pointer"
-                          onClick={() => moveDocument(doc.id, null)}
-                        >
-                          Racine (retirer du dossier)
-                        </DropdownMenuItem>
-                      )}
-                      {folders.filter(f => f.id !== doc.folderId).map(f => (
-                        <DropdownMenuItem
-                          key={f.id}
-                          className="text-white/65 focus:text-white focus:bg-white/[0.05] text-[12px] gap-2 cursor-pointer"
-                          onClick={() => moveDocument(doc.id, f.id)}
-                        >
-                          {f.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </>
-              )}
-              <RoleGate permission="deleteDocuments">
-                <DropdownMenuSeparator style={{ background: "rgba(255,255,255,0.06)" }} />
-                <DropdownMenuItem
-                  className="text-red-400/80 focus:text-red-400 focus:bg-red-500/[0.08] text-[12px] gap-2 cursor-pointer"
-                  onClick={() => removeDocument(doc.id)}
-                >
-                  <Trash2 size={12} /> Supprimer
-                </DropdownMenuItem>
-              </RoleGate>
+              <DropdownMenuItem
+                className="text-red-400/80 focus:text-red-400 focus:bg-red-500/[0.08] text-[12px] gap-2 cursor-pointer"
+                onClick={() => removeDocument(doc.id)}
+              >
+                <Trash2 size={12} /> Supprimer
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
