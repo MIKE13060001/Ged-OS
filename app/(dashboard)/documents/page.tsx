@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Plus,
   FolderPlus,
-  Filter,
   FileCheck,
   Zap,
   Bell,
@@ -15,6 +14,10 @@ import {
   List,
   Search,
   SlidersHorizontal,
+  Folder,
+  FolderOpen,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { DocumentGrid } from "@/components/documents/DocumentGrid";
@@ -111,13 +114,34 @@ type Tab = "recents" | "epingles" | "corbeille";
 type ViewMode = "grid" | "list";
 
 export default function DocumentsPage() {
-  const { documents } = useDocumentStore();
+  const { documents, folders, selectedFolderId, addFolder, removeFolder, setSelectedFolder } = useDocumentStore();
   const [showUpload, setShowUpload] = useState(false);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("recents");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredDocuments = documents.filter((doc) => {
+  const handleCreateFolder = () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    addFolder({
+      id: crypto.randomUUID(),
+      tenantId: "local",
+      name,
+      path: `/${name}`,
+      createdBy: "local",
+      createdAt: new Date().toISOString(),
+    });
+    setNewFolderName("");
+    setShowNewFolder(false);
+  };
+
+  const folderFiltered = selectedFolderId
+    ? documents.filter((d) => d.folderId === selectedFolderId)
+    : documents.filter((d) => !d.folderId);
+
+  const filteredDocuments = folderFiltered.filter((doc) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -157,6 +181,7 @@ export default function DocumentsPage() {
 
             <div className="flex items-center gap-2">
               <button
+                onClick={() => setShowNewFolder(true)}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[13px] font-medium transition-all duration-150 hover:bg-white/[0.06] active:bg-white/[0.08]"
                 style={{
                   color: "rgba(255,255,255,0.55)",
@@ -207,6 +232,55 @@ export default function DocumentsPage() {
           />
         </div>
       </div>
+
+      {/* Folder navigation */}
+      {folders.length > 0 && (
+        <div
+          className="px-6 py-3 flex items-center gap-2 flex-wrap shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+        >
+          <button
+            onClick={() => setSelectedFolder(null)}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[12px] font-medium transition-all"
+            style={{
+              background: !selectedFolderId ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${!selectedFolderId ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.07)"}`,
+              color: !selectedFolderId ? "#60a5fa" : "rgba(255,255,255,0.4)",
+            }}
+          >
+            <Folder size={11} />
+            Racine
+          </button>
+          {folders.map((f) => (
+            <div key={f.id} className="flex items-center gap-0.5 group">
+              <button
+                onClick={() => setSelectedFolder(f.id)}
+                className="flex items-center gap-1.5 h-7 px-3 rounded-l-lg text-[12px] font-medium transition-all"
+                style={{
+                  background: selectedFolderId === f.id ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${selectedFolderId === f.id ? "rgba(59,130,246,0.3)" : "rgba(255,255,255,0.07)"}`,
+                  borderRight: "none",
+                  color: selectedFolderId === f.id ? "#60a5fa" : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {selectedFolderId === f.id ? <FolderOpen size={11} /> : <Folder size={11} />}
+                {f.name}
+              </button>
+              <button
+                onClick={() => removeFolder(f.id)}
+                className="h-7 px-1.5 rounded-r-lg opacity-0 group-hover:opacity-100 transition-all flex items-center"
+                style={{
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  color: "rgba(248,113,113,0.6)",
+                }}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div
@@ -307,6 +381,59 @@ export default function DocumentsPage() {
 
       {/* Document Viewer */}
       <DocumentViewer />
+
+      {/* New Folder Dialog */}
+      <Dialog open={showNewFolder} onOpenChange={setShowNewFolder}>
+        <DialogContent
+          className="max-w-sm"
+          style={{
+            background: "hsl(240 12% 7%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white font-semibold text-base flex items-center gap-2">
+              <FolderPlus size={16} className="text-blue-400" />
+              Nouveau dossier
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-3 flex flex-col gap-3">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Nom du dossier..."
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+              className="h-9 px-3 rounded-lg text-[13px] outline-none w-full"
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "rgba(255,255,255,0.85)",
+                fontFamily: "inherit",
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowNewFolder(false)}
+                className="flex-1 h-8 rounded-lg text-[12px] font-medium transition-all hover:bg-white/[0.06]"
+                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className="flex-1 h-8 rounded-lg text-[12px] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40"
+                style={{ background: "#3b82f6" }}
+              >
+                Créer
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Upload Dialog */}
       <Dialog open={showUpload} onOpenChange={setShowUpload}>
