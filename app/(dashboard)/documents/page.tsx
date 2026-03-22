@@ -115,9 +115,21 @@ export default function DocumentsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("recents");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredDocuments = documents.filter((doc) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      doc.name.toLowerCase().includes(q) ||
+      doc.originalName?.toLowerCase().includes(q) ||
+      doc.tags?.some((t) => t.toLowerCase().includes(q)) ||
+      doc.ocrText?.toLowerCase().includes(q)
+    );
+  });
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: "recents", label: "Récents", count: documents.length },
+    { key: "recents", label: "Récents", count: filteredDocuments.length },
     { key: "epingles", label: "Épinglés", count: 0 },
     { key: "corbeille", label: "Corbeille" },
   ];
@@ -241,13 +253,16 @@ export default function DocumentsPage() {
             <input
               type="text"
               placeholder="Filtrer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="h-7 pl-7 pr-3 rounded-lg text-[12px] outline-none"
               style={{
                 background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                border: `1px solid ${searchQuery ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.07)"}`,
                 color: "rgba(255,255,255,0.7)",
-                width: "140px",
+                width: searchQuery ? "200px" : "140px",
                 fontFamily: "inherit",
+                transition: "width 0.2s, border-color 0.15s",
               }}
             />
           </div>
@@ -287,7 +302,7 @@ export default function DocumentsPage() {
 
       {/* Document grid */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        <DocumentGrid documents={activeTab === "corbeille" ? [] : documents} />
+        <DocumentGrid documents={activeTab === "corbeille" ? [] : filteredDocuments} />
       </div>
 
       {/* Document Viewer */}
