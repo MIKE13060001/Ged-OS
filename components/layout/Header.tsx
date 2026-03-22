@@ -1,9 +1,6 @@
 "use client";
 
-import { Search, Bell, LayoutGrid } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Search, Bell, Command } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,58 +9,100 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 
 export function Header() {
   return (
-    <header className="h-16 bg-background/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-6 z-20 shrink-0">
+    <header
+      className="h-14 flex items-center justify-between px-5 shrink-0 z-20 relative"
+      style={{
+        background: "rgba(9,9,14,0.8)",
+        backdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+      }}
+    >
       {/* Search */}
-      <div className="flex items-center flex-1 max-w-xl">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input
-            type="text"
-            placeholder="Rechercher dans la GED..."
-            className="pl-9 bg-muted/50 border-border focus-visible:ring-primary/50 h-9"
+      <div className="flex items-center flex-1 max-w-md">
+        <div className="relative w-full group">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
+            size={14}
+            style={{ color: "rgba(255,255,255,0.25)" }}
           />
+          <input
+            type="text"
+            placeholder="Rechercher un document, une action..."
+            className="w-full h-8 pl-9 pr-10 text-[13px] rounded-lg outline-none transition-all placeholder:text-white/20 text-white/80"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.border = "1px solid rgba(59,130,246,0.4)";
+              e.currentTarget.style.background = "rgba(59,130,246,0.05)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.07)";
+              e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+            }}
+          />
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none">
+            <Command size={10} style={{ color: "rgba(255,255,255,0.18)" }} />
+            <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.18)" }}>K</span>
+          </div>
         </div>
       </div>
 
-      {/* Right actions */}
-      <div className="flex items-center gap-3 ml-4">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-xl">
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-background" />
-        </Button>
+      {/* Right */}
+      <div className="flex items-center gap-2 ml-4">
+        {/* Notification */}
+        <button
+          className="relative w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-white/5"
+        >
+          <Bell size={15} style={{ color: "rgba(255,255,255,0.45)" }} />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+            style={{ background: "#3b82f6", boxShadow: "0 0 6px rgba(59,130,246,0.8)" }} />
+        </button>
+
+        {/* Divider */}
+        <div className="w-px h-5 bg-white/8" />
 
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 group cursor-pointer">
-              <div className="hidden md:block text-right">
-                <p className="text-sm font-bold text-foreground leading-none">G. Architect</p>
-                <p className="text-[10px] text-primary font-bold tracking-tighter uppercase mt-0.5">Enterprise Admin</p>
+            <button className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 group">
+              <div className="text-right hidden md:block">
+                <p className="text-[12px] font-bold text-white/90 leading-none">G. Architect</p>
+                <p className="text-[9px] font-bold uppercase tracking-wider mt-0.5" style={{ color: "rgba(99,102,241,0.8)" }}>
+                  Enterprise Admin
+                </p>
               </div>
-              <Avatar className="h-9 w-9 rounded-xl border border-border group-hover:border-primary/50 transition-colors">
-                <AvatarFallback className="rounded-xl bg-muted text-primary">
-                  <LayoutGrid size={16} />
-                </AvatarFallback>
-              </Avatar>
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white shrink-0"
+                style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
+              >
+                GA
+              </div>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent
+            align="end"
+            className="w-52"
+            style={{
+              background: "hsl(240 12% 8%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">G. Architect</p>
-                <p className="text-xs leading-none text-muted-foreground">admin@gedos.fr</p>
+              <div className="flex flex-col space-y-0.5">
+                <p className="text-sm font-bold text-white/90">G. Architect</p>
+                <p className="text-xs text-white/40">admin@gedos.fr</p>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Profil</DropdownMenuItem>
-            <DropdownMenuItem>Paramètres</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuSeparator className="bg-white/8" />
+            <DropdownMenuItem className="text-white/70 focus:text-white focus:bg-white/5 text-sm">Profil</DropdownMenuItem>
+            <DropdownMenuItem className="text-white/70 focus:text-white focus:bg-white/5 text-sm">Paramètres</DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-white/8" />
+            <DropdownMenuItem className="text-red-400 focus:text-red-300 focus:bg-red-500/10 text-sm">
               Déconnexion
             </DropdownMenuItem>
           </DropdownMenuContent>

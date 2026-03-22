@@ -1,11 +1,8 @@
 "use client";
 
-import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical } from "lucide-react";
+import { FileText, Download, Trash2, ExternalLink, Clock, CheckCircle2, AlertCircle, MoreVertical, FileImage } from "lucide-react";
 import { Document, OCRStatus } from "@/types/database";
 import { useDocumentStore } from "@/stores/documentStore";
-import { MagicCard } from "@/components/magicui/magic-card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,82 +10,127 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const statusConfig: Record<OCRStatus, { icon: React.ElementType; variant: "warning" | "info" | "success" | "destructive"; label: string }> = {
-  pending:    { icon: Clock,         variant: "warning",     label: "En attente" },
-  processing: { icon: Clock,         variant: "info",        label: "En cours..." },
-  completed:  { icon: CheckCircle2,  variant: "success",     label: "Indexé" },
-  failed:     { icon: AlertCircle,   variant: "destructive", label: "Échec" },
+const statusConfig: Record<OCRStatus, { icon: React.ElementType; color: string; bg: string; label: string }> = {
+  pending:    { icon: Clock,        color: "#f59e0b", bg: "rgba(245,158,11,0.1)",  label: "En attente" },
+  processing: { icon: Clock,        color: "#3b82f6", bg: "rgba(59,130,246,0.1)",  label: "En cours…" },
+  completed:  { icon: CheckCircle2, color: "#10b981", bg: "rgba(16,185,129,0.1)",  label: "Indexé" },
+  failed:     { icon: AlertCircle,  color: "#ef4444", bg: "rgba(239,68,68,0.1)",   label: "Échec" },
 };
+
+function getMimeIcon(mimeType: string) {
+  if (mimeType.startsWith("image/")) return { Icon: FileImage, color: "#a855f7" };
+  if (mimeType.includes("pdf"))       return { Icon: FileText,  color: "#ef4444" };
+  return { Icon: FileText, color: "#3b82f6" };
+}
 
 export function DocumentCard({ doc }: { doc: Document }) {
   const { setSelectedDocument, removeDocument } = useDocumentStore();
   const status = statusConfig[doc.ocrStatus];
   const StatusIcon = status.icon;
+  const { Icon: MimeIcon, color: mimeColor } = getMimeIcon(doc.mimeType);
 
   return (
-    <MagicCard className="p-4 cursor-pointer group transition-all duration-200 hover:shadow-lg hover:shadow-primary/5">
+    <div
+      className="rounded-2xl p-4 cursor-pointer group relative overflow-hidden transition-all duration-200"
+      style={{
+        background: "hsl(240 12% 7%)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+      onClick={() => setSelectedDocument(doc)}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.12)";
+        (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 12px 30px rgba(0,0,0,0.4)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.06)";
+        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
+      }}
+    >
+      {/* Subtle bg glow */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+        style={{ background: `radial-gradient(circle at 30% 0%, ${mimeColor}08 0%, transparent 60%)` }} />
+
       {/* Header */}
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex items-start justify-between mb-3 relative z-10">
         <div
-          className="p-2.5 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors"
-          onClick={() => setSelectedDocument(doc)}
+          className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
+          style={{ background: `${mimeColor}18`, border: `1px solid ${mimeColor}28` }}
         >
-          <FileText className="text-primary" size={22} />
+          <MimeIcon size={18} style={{ color: mimeColor }} />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
+              >
+                <MoreVertical size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              style={{ background: "hsl(240 12% 9%)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
-              <MoreVertical size={14} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {doc.previewUrl && (
-              <DropdownMenuItem onClick={() => window.open(doc.previewUrl, "_blank")}>
-                <ExternalLink size={14} className="mr-2" /> Ouvrir
+              {doc.previewUrl && (
+                <DropdownMenuItem
+                  className="text-white/70 focus:text-white focus:bg-white/5 text-xs gap-2"
+                  onClick={() => window.open(doc.previewUrl, "_blank")}
+                >
+                  <ExternalLink size={13} /> Ouvrir
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="text-white/70 focus:text-white focus:bg-white/5 text-xs gap-2">
+                <Download size={13} /> Télécharger
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem>
-              <Download size={14} className="mr-2" /> Télécharger
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => removeDocument(doc.id)}
-            >
-              <Trash2 size={14} className="mr-2" /> Supprimer
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem
+                className="text-red-400 focus:text-red-300 focus:bg-red-500/10 text-xs gap-2"
+                onClick={() => removeDocument(doc.id)}
+              >
+                <Trash2 size={13} /> Supprimer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      {/* Name & meta */}
-      <div onClick={() => setSelectedDocument(doc)}>
-        <h3 className="font-semibold text-foreground truncate mb-1 text-sm leading-tight" title={doc.name}>
+      {/* Name */}
+      <div className="relative z-10 mb-3">
+        <h3
+          className="text-[13px] font-semibold leading-snug mb-1 truncate"
+          style={{ color: "rgba(255,255,255,0.9)" }}
+          title={doc.name}
+        >
           {doc.name}
         </h3>
-        <div className="flex items-center text-muted-foreground text-[11px] mb-3">
-          <span>{(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB</span>
-          <span className="mx-1.5">•</span>
-          <span>{new Date(doc.createdAt).toLocaleDateString("fr-FR")}</span>
-        </div>
+        <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+          {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB · {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+        </p>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-border">
-        <Badge variant={status.variant} className="text-[10px] py-0.5">
-          <StatusIcon size={10} className="mr-1" />
+      <div
+        className="flex items-center justify-between pt-3 relative z-10"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <div
+          className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider"
+          style={{ background: status.bg, color: status.color }}
+        >
+          <StatusIcon size={9} />
           {status.label}
-        </Badge>
+        </div>
         {doc.tags && doc.tags.length > 0 && (
-          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+          <span
+            className="text-[10px] font-semibold truncate max-w-[90px]"
+            style={{ color: "rgba(255,255,255,0.25)" }}
+          >
             #{doc.tags[0]}
           </span>
         )}
       </div>
-    </MagicCard>
+    </div>
   );
 }

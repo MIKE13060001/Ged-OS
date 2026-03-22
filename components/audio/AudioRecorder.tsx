@@ -2,9 +2,6 @@
 
 import { useState, useRef } from "react";
 import { Mic, Square, Trash2, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
-import { ShimmerButton } from "@/components/magicui/shimmer-button";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface AudioRecorderProps {
@@ -25,7 +22,7 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
     const secs = s % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   const startRecording = async () => {
@@ -34,23 +31,20 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
       mediaRecorder.current = new MediaRecorder(stream);
       chunks.current = [];
       setTranscription(null);
-
       mediaRecorder.current.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.current.push(e.data);
       };
-
       mediaRecorder.current.onstop = () => {
         const blob = new Blob(chunks.current, { type: "audio/mp3" });
         setAudioBlob(blob);
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((t) => t.stop());
       };
-
       mediaRecorder.current.start();
       setIsRecording(true);
       setDuration(0);
       timerInterval.current = setInterval(() => setDuration((d) => d + 1), 1000);
     } catch {
-      alert("Impossible d'accéder au microphone. Vérifiez les permissions.");
+      alert("Impossible d'accéder au microphone.");
     }
   };
 
@@ -65,7 +59,6 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
   const handleProcess = async () => {
     if (!audioBlob) return;
     setIsProcessing(true);
-
     try {
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
@@ -96,103 +89,168 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
   };
 
   return (
-    <Card className="border-border max-w-xl w-full shadow-2xl">
-      <CardContent className="p-8">
-        <div className="flex flex-col items-center text-center space-y-6">
-          {/* Mic indicator */}
-          <div className="relative">
-            {isRecording && (
-              <span className="absolute inset-0 rounded-full bg-red-500/20 animate-pulse-ring" />
-            )}
-            <div
-              className={cn(
-                "w-24 h-24 rounded-full flex items-center justify-center transition-all duration-500 border-4",
-                isRecording
-                  ? "bg-red-500/10 border-red-500 scale-110"
-                  : "bg-muted border-border"
-              )}
+    <div
+      className="w-full max-w-lg rounded-3xl overflow-hidden relative"
+      style={{
+        background: "hsl(240 12% 7%)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
+      }}
+    >
+      {/* Top gradient line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent)" }} />
+
+      <div className="p-10 flex flex-col items-center text-center gap-7">
+        {/* Mic ring */}
+        <div className="relative flex items-center justify-center">
+          {isRecording && (
+            <>
+              <span className="absolute w-32 h-32 rounded-full animate-pulse-ring"
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }} />
+              <span className="absolute w-24 h-24 rounded-full animate-pulse-ring"
+                style={{ background: "rgba(239,68,68,0.06)", animationDelay: "0.4s" }} />
+            </>
+          )}
+          <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-500 relative z-10"
+            style={{
+              background: isRecording
+                ? "linear-gradient(135deg, rgba(239,68,68,0.2), rgba(239,68,68,0.1))"
+                : "rgba(255,255,255,0.04)",
+              border: isRecording
+                ? "1px solid rgba(239,68,68,0.4)"
+                : "1px solid rgba(255,255,255,0.08)",
+              boxShadow: isRecording ? "0 0 30px rgba(239,68,68,0.2)" : "none",
+              transform: isRecording ? "scale(1.05)" : "scale(1)",
+            }}
+          >
+            <Mic
+              size={34}
+              style={{ color: isRecording ? "#ef4444" : "rgba(255,255,255,0.3)" }}
+              className="transition-colors duration-300"
+            />
+          </div>
+        </div>
+
+        {/* Title */}
+        <div>
+          <h2 className="text-xl font-black text-white mb-1.5">
+            {isRecording ? "Capture en cours…" : audioBlob ? "Prêt à analyser" : "Studio d'enregistrement"}
+          </h2>
+          <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+            {isRecording
+              ? "Voix capturée — traitement local souverain"
+              : "Transcription et résumé par IA Gemini"}
+          </p>
+        </div>
+
+        {/* Timer */}
+        <div
+          className="text-5xl font-black tabular-nums tracking-tighter"
+          style={{
+            color: isRecording ? "#ef4444" : "rgba(255,255,255,0.9)",
+            fontVariantNumeric: "tabular-nums",
+            transition: "color 0.3s",
+          }}
+        >
+          {formatTime(duration)}
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-3 w-full justify-center">
+          {!isRecording && !audioBlob && (
+            <button
+              onClick={startRecording}
+              className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
+              style={{
+                background: "linear-gradient(135deg, #6366f1, #3b82f6)",
+                boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 8px 32px rgba(99,102,241,0.6)")}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 24px rgba(99,102,241,0.4)")}
             >
-              <Mic size={40} className={isRecording ? "text-red-500" : "text-muted-foreground"} />
-            </div>
-          </div>
+              <Mic size={18} />
+              Démarrer
+            </button>
+          )}
 
-          {/* Title */}
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">
-              {isRecording
-                ? "Enregistrement en cours..."
-                : audioBlob
-                ? "Enregistrement terminé"
-                : "Studio d'enregistrement"}
-            </h2>
-            <p className="text-muted-foreground text-sm mt-1">
-              {isRecording
-                ? "Votre voix est capturée en temps réel"
-                : "Capturez vos réunions, l'IA fera le reste"}
-            </p>
-          </div>
+          {isRecording && (
+            <button
+              onClick={stopRecording}
+              className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
+              style={{
+                background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                boxShadow: "0 8px 24px rgba(239,68,68,0.4)",
+              }}
+            >
+              <Square size={16} fill="white" />
+              Arrêter
+            </button>
+          )}
 
-          {/* Timer */}
-          <div className="text-4xl font-mono font-bold text-foreground tabular-nums">
-            {formatTime(duration)}
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-3 w-full justify-center">
-            {!isRecording && !audioBlob && (
-              <ShimmerButton onClick={startRecording} className="px-8 py-3.5 gap-2 font-bold">
-                <Mic size={20} />
-                Démarrer
-              </ShimmerButton>
-            )}
-
-            {isRecording && (
-              <Button
-                onClick={stopRecording}
-                className="px-8 py-3.5 bg-red-500 hover:bg-red-600 gap-2 font-bold shadow-lg shadow-red-500/20"
-                size="lg"
+          {audioBlob && !isProcessing && (
+            <>
+              <button
+                onClick={reset}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.5)",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.9)")}
+                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
               >
-                <Square size={18} />
-                Arrêter
-              </Button>
-            )}
+                <Trash2 size={17} />
+              </button>
+              <button
+                onClick={handleProcess}
+                className="flex-1 flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
+                style={{
+                  background: "linear-gradient(135deg, #059669, #10b981)",
+                  boxShadow: "0 8px 24px rgba(16,185,129,0.35)",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 8px 30px rgba(16,185,129,0.5)")}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 24px rgba(16,185,129,0.35)")}
+              >
+                <Sparkles size={17} />
+                Analyser avec l'IA
+              </button>
+            </>
+          )}
 
-            {audioBlob && !isProcessing && (
-              <>
-                <Button variant="outline" size="icon" onClick={reset} className="h-12 w-12 rounded-xl">
-                  <Trash2 size={18} />
-                </Button>
-                <ShimmerButton
-                  onClick={handleProcess}
-                  className="flex-1 px-8 py-3.5 gap-2 font-bold"
-                  background="rgba(16, 185, 129, 1)"
-                >
-                  <Sparkles size={20} />
-                  Analyser avec IA
-                </ShimmerButton>
-              </>
-            )}
-
-            {isProcessing && (
-              <div className="flex items-center gap-3 text-muted-foreground font-medium">
-                <Loader2 size={20} className="animate-spin text-primary" />
-                Traitement par l&apos;IA en cours...
-              </div>
-            )}
-          </div>
-
-          {/* Transcription result */}
-          {transcription && (
-            <div className="w-full bg-muted/30 border border-border rounded-xl p-4 text-left space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <CheckCircle2 size={14} />
-                <span className="text-xs font-bold uppercase tracking-wider">Transcription complète</span>
-              </div>
-              <p className="text-sm text-foreground leading-relaxed">{transcription}</p>
+          {isProcessing && (
+            <div className="flex items-center gap-3 py-3 font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <Loader2 size={20} className="animate-spin text-blue-400" />
+              <span className="text-sm">Traitement en cours…</span>
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Transcription result */}
+        {transcription && (
+          <div
+            className="w-full rounded-2xl p-4 text-left"
+            style={{
+              background: "rgba(16,185,129,0.06)",
+              border: "1px solid rgba(16,185,129,0.2)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 size={13} className="text-emerald-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                Transcription complète
+              </span>
+            </div>
+            <p className="text-[13px] leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+              {transcription}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom gradient line */}
+      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.3), transparent)" }} />
+    </div>
   );
 }
