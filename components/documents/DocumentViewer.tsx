@@ -1,111 +1,186 @@
 "use client";
 
-import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, Database, HardDrive, ShieldCheck } from "lucide-react";
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 
 export function DocumentViewer() {
   const { selectedDocument: doc, setSelectedDocument, removeDocument } = useDocumentStore();
   const isImage = doc?.mimeType.startsWith("image/");
 
+  const sizeLabel = doc
+    ? doc.sizeBytes >= 1024 * 1024
+      ? `${(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB`
+      : `${(doc.sizeBytes / 1024).toFixed(0)} KB`
+    : "";
+
   return (
     <Sheet open={!!doc} onOpenChange={(open) => !open && setSelectedDocument(null)}>
-      <SheetContent side="right" className="w-[580px] sm:max-w-[580px] p-0 flex flex-col">
+      <SheetContent
+        side="right"
+        className="w-[520px] sm:max-w-[520px] p-0 flex flex-col"
+        style={{
+          background: "hsl(240 14% 5%)",
+          border: "none",
+          borderLeft: "1px solid rgba(255,255,255,0.07)",
+          boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
+        }}
+      >
         {doc && (
           <>
-            <SheetHeader className="px-6 py-4 border-b border-border bg-card/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
-                  <FileText size={22} />
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4 shrink-0"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)" }}
+                >
+                  <FileText size={15} className="text-blue-400" />
                 </div>
-                <div className="overflow-hidden flex-1">
-                  <SheetTitle className="truncate text-base" title={doc.name}>{doc.name}</SheetTitle>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-white/90 truncate" title={doc.name}>
+                    {doc.name}
+                  </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <Badge variant="secondary" className="text-[10px] py-0">v{doc.version}</Badge>
-                    <span className="text-[10px] text-primary font-bold uppercase tracking-wider">{doc.mimeType}</span>
+                    <span
+                      className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}
+                    >
+                      v{doc.version}
+                    </span>
+                    <span className="text-[10px] font-medium" style={{ color: "rgba(59,130,246,0.7)" }}>
+                      {doc.mimeType.split("/")[1]?.toUpperCase()}
+                    </span>
                   </div>
                 </div>
               </div>
-            </SheetHeader>
+              <button
+                onClick={() => setSelectedDocument(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-white/[0.06] shrink-0"
+                style={{ color: "rgba(255,255,255,0.4)" }}
+              >
+                <X size={14} />
+              </button>
+            </div>
 
             <ScrollArea className="flex-1">
-              <div className="p-6 space-y-6">
-                {/* Preview Area */}
-                <div className="aspect-[4/3] w-full bg-muted/30 rounded-2xl border border-border overflow-hidden relative flex flex-col items-center justify-center p-6 group">
+              <div className="p-5 space-y-5">
+                {/* Preview */}
+                <div
+                  className="w-full rounded-xl overflow-hidden relative flex flex-col items-center justify-center"
+                  style={{
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    minHeight: "200px",
+                  }}
+                >
                   {isImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={doc.previewUrl}
                       alt={doc.name}
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg transition-transform group-hover:scale-[1.02] duration-500"
+                      className="max-w-full max-h-64 object-contain rounded-lg p-4"
                     />
                   ) : (
-                    <div className="flex flex-col items-center text-center space-y-4">
-                      <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center text-primary border border-primary/20">
-                        <FileText size={40} />
+                    <div className="flex flex-col items-center text-center p-8 gap-4">
+                      <div
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                        style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)" }}
+                      >
+                        <FileText size={30} className="text-blue-400" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-foreground">Visualisation du Document</h3>
-                        <p className="text-muted-foreground text-sm mt-1 max-w-xs">
+                        <p className="text-[14px] font-semibold text-white/85">Visualisation sécurisée</p>
+                        <p className="text-[12px] mt-1 max-w-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
                           Ce document s&apos;ouvre dans un onglet isolé pour garantir le chiffrement de bout en bout.
                         </p>
                       </div>
                       {doc.previewUrl && (
-                        <Button onClick={() => window.open(doc.previewUrl, "_blank")} className="gap-2">
-                          <ExternalLink size={16} />
-                          Ouvrir dans un nouvel onglet
-                        </Button>
+                        <button
+                          onClick={() => window.open(doc.previewUrl, "_blank")}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:opacity-90"
+                          style={{ background: "#3b82f6", color: "white" }}
+                        >
+                          <ExternalLink size={12} />
+                          Ouvrir dans un onglet
+                        </button>
                       )}
                     </div>
                   )}
-                  <div className="absolute bottom-3 inset-x-0 flex justify-center">
-                    <div className="px-3 py-1 bg-background/80 backdrop-blur border border-border rounded-full flex items-center gap-2">
-                      <ShieldCheck size={10} className="text-emerald-500" />
-                      <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Tunnel Sécurisé</span>
+
+                  {/* Security badge */}
+                  <div className="absolute bottom-2 inset-x-0 flex justify-center">
+                    <div
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                      style={{
+                        background: "rgba(0,0,0,0.7)",
+                        backdropFilter: "blur(8px)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <ShieldCheck size={9} className="text-emerald-400" />
+                      <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        Tunnel chiffré
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Metadata */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-muted/30 p-4 rounded-xl border border-border">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5 mb-1">
-                      <Calendar size={10} className="text-primary" /> Ajouté le
-                    </label>
-                    <p className="text-sm font-bold text-foreground">
-                      {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
-                    </p>
-                  </div>
-                  <div className="bg-muted/30 p-4 rounded-xl border border-border">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5 mb-1">
-                      <HardDrive size={10} className="text-primary" /> Taille
-                    </label>
-                    <p className="text-sm font-bold text-foreground">
-                      {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
+                {/* Metadata grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { icon: Calendar, label: "Ajouté le", value: new Date(doc.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) },
+                    { icon: HardDrive, label: "Taille", value: sizeLabel },
+                  ].map(({ icon: Icon, label, value }) => (
+                    <div
+                      key={label}
+                      className="rounded-xl p-3.5"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Icon size={10} className="text-blue-400" />
+                        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          {label}
+                        </span>
+                      </div>
+                      <p className="text-[13px] font-semibold text-white/85">{value}</p>
+                    </div>
+                  ))}
                 </div>
 
-                {/* AI Tags */}
+                {/* AI tags */}
                 {doc.tags && doc.tags.length > 0 && (
-                  <div className="bg-gradient-to-br from-card to-background border border-primary/20 rounded-2xl p-5 space-y-3 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-5 opacity-[0.04]">
-                      <Database size={80} className="text-primary" />
+                  <div
+                    className="rounded-xl p-4"
+                    style={{
+                      background: "rgba(59,130,246,0.05)",
+                      border: "1px solid rgba(59,130,246,0.12)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <Tag size={11} className="text-blue-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(59,130,246,0.8)" }}>
+                        Synthèse sémantique IA
+                      </span>
                     </div>
-                    <h3 className="text-xs font-black text-foreground flex items-center gap-2 uppercase tracking-widest">
-                      <span className="w-1.5 h-4 bg-primary rounded-full shadow-[0_0_10px_hsl(217,91%,60%)]" />
-                      Synthèse Sémantique IA
-                    </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed italic">
-                      &quot;Ce document a été analysé via notre pipeline RAG. Thématiques : {doc.tags.join(", ")}.&quot;
+                    <p className="text-[12px] leading-relaxed italic mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+                      &quot;Thématiques identifiées : {doc.tags.join(", ")}.&quot;
                     </p>
-                    <div className="flex flex-wrap gap-2 relative z-10">
+                    <div className="flex flex-wrap gap-1.5">
                       {doc.tags.map((tag) => (
-                        <span key={tag} className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-[10px] border border-primary/20 font-black uppercase tracking-widest">
+                        <span
+                          key={tag}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide"
+                          style={{
+                            background: "rgba(59,130,246,0.12)",
+                            color: "#60a5fa",
+                            border: "1px solid rgba(59,130,246,0.2)",
+                          }}
+                        >
                           #{tag}
                         </span>
                       ))}
@@ -113,37 +188,52 @@ export function DocumentViewer() {
                   </div>
                 )}
 
-                {/* OCR Text preview */}
+                {/* OCR text */}
                 {doc.ocrText && (
-                  <>
-                    <Separator />
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground mb-2">Texte extrait</h4>
-                      <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 rounded-lg p-3 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                      Texte extrait
+                    </p>
+                    <div
+                      className="rounded-xl p-4 max-h-40 overflow-y-auto"
+                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    >
+                      <p
+                        className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono"
+                        style={{ color: "rgba(255,255,255,0.5)" }}
+                      >
                         {doc.ocrText}
                       </p>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </ScrollArea>
 
             {/* Footer */}
-            <div className="p-4 border-t border-border flex gap-3">
-              <Button variant="outline" className="flex-1 gap-2">
-                <Download size={16} /> Télécharger
-              </Button>
-              <Button className="flex-1 gap-2">
-                <Share2 size={16} /> Partager
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
+            <div
+              className="px-5 py-3.5 flex items-center gap-2 shrink-0"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <button
+                className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-medium transition-all hover:bg-white/[0.06]"
+                style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.08)" }}
               >
-                <Trash2 size={18} />
-              </Button>
+                <Download size={13} /> Télécharger
+              </button>
+              <button
+                className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg text-[12px] font-semibold text-white transition-all hover:opacity-90"
+                style={{ background: "#3b82f6" }}
+              >
+                <Share2 size={13} /> Partager
+              </button>
+              <button
+                onClick={() => { removeDocument(doc.id); setSelectedDocument(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:bg-red-500/[0.1]"
+                style={{ color: "rgba(248,113,113,0.6)", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <Trash2 size={13} />
+              </button>
             </div>
           </>
         )}

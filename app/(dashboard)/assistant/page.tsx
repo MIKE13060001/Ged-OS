@@ -1,69 +1,99 @@
 "use client";
 
 import { ChatInterface } from "@/components/assistant/ChatInterface";
-import { AnimatedGradientText } from "@/components/magicui/animated-gradient-text";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { Sparkles, Brain, Database, Zap } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 
-const features = [
+const levels = [
   {
+    id: 1,
     icon: Brain,
-    title: "N1 – Recherche documentaire",
+    label: "N1 · Recherche",
     desc: "Recherche sémantique, résumés et FAQ basés sur vos documents.",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10",
+    color: "#3b82f6",
+    bg: "rgba(59,130,246,0.08)",
+    border: "rgba(59,130,246,0.16)",
   },
   {
+    id: 2,
     icon: Database,
-    title: "N2 – Traitement de données",
-    desc: "Extraction, tableaux Excel, graphiques et rapports structurés.",
-    color: "text-violet-400",
-    bg: "bg-violet-500/10",
+    label: "N2 · Analyse",
+    desc: "Extraction de données, tableaux Excel, graphiques et rapports structurés.",
+    color: "#8b5cf6",
+    bg: "rgba(139,92,246,0.08)",
+    border: "rgba(139,92,246,0.16)",
   },
   {
+    id: 3,
     icon: Zap,
-    title: "N3 – Actions validées",
+    label: "N3 · Action",
     desc: "Emails, création de dossiers, intégrations API avec validation humaine.",
-    color: "text-amber-400",
-    bg: "bg-amber-500/10",
+    color: "#f59e0b",
+    bg: "rgba(245,158,11,0.08)",
+    border: "rgba(245,158,11,0.16)",
   },
 ];
 
 export default function AssistantPage() {
   return (
-    <div className="p-8 h-full flex flex-col">
-      <BlurFade>
-        <div className="mb-6">
-          <h1 className="text-4xl font-black tracking-tight text-foreground mb-2 flex items-center gap-3">
-            <span className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-              <Sparkles size={22} className="text-primary" />
-            </span>
-            <AnimatedGradientText>Assistant GEDOS</AnimatedGradientText>
-          </h1>
-          <p className="text-muted-foreground">3 niveaux d&apos;intelligence : recherche, analyse, et action</p>
-        </div>
-
-        {/* Feature cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {features.map(({ icon: Icon, title, desc, color, bg }) => (
-            <Card key={title} className="border-border hover:border-primary/20 transition-all">
-              <CardContent className="p-4">
-                <div className={`p-2.5 rounded-xl w-fit mb-3 ${bg}`}>
-                  <Icon size={20} className={color} />
+    <div className="flex flex-col h-full">
+      {/* Page header */}
+      <div
+        className="px-6 pt-6 pb-5 shrink-0"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <BlurFade>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.2)" }}
+                >
+                  <Sparkles size={14} className="text-blue-400" />
                 </div>
-                <h3 className="font-bold text-foreground text-sm mb-1">{title}</h3>
-                <p className="text-muted-foreground text-xs leading-relaxed">{desc}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                <h1 className="text-xl font-semibold text-white tracking-tight">Assistant GEDOS</h1>
+              </div>
+              <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                3 niveaux d&apos;intelligence — recherche, analyse et action
+              </p>
+            </div>
+          </div>
+        </BlurFade>
+      </div>
 
-        {/* Chat interface */}
+      <div className="flex-1 min-h-0 flex flex-col p-6 gap-4 overflow-hidden">
+        {/* Level cards */}
+        <BlurFade>
+          <div className="grid grid-cols-3 gap-3 shrink-0">
+            {levels.map(({ id, icon: Icon, label, desc, color, bg, border }) => (
+              <div
+                key={id}
+                className="rounded-xl p-3.5 relative overflow-hidden"
+                style={{
+                  background: bg,
+                  border: `1px solid ${border}`,
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon size={14} style={{ color }} />
+                  <span className="text-[12px] font-semibold" style={{ color }}>
+                    {label}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </BlurFade>
+
+        {/* Chat */}
         <div className="flex-1 min-h-0">
           <ChatInterface />
         </div>
-      </BlurFade>
+      </div>
     </div>
   );
 }

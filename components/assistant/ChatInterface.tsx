@@ -8,18 +8,12 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  Loader2,
   Bot,
   User,
+  AlertTriangle,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AnimatedGradientText } from "@/components/magicui/animated-gradient-text";
-import { BlurFade } from "@/components/magicui/blur-fade";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -30,11 +24,46 @@ interface Message {
   timestamp: Date;
 }
 
-const levelConfig = {
-  1: { label: "N1 · Recherche", description: "Recherche et restitution d'informations", color: "text-blue-400" },
-  2: { label: "N2 · Analyse", description: "Traitement et structuration des données", color: "text-violet-400" },
-  3: { label: "N3 · Action", description: "Actions avec validation humaine", color: "text-amber-400" },
-};
+const levels = [
+  { id: 1, label: "Recherche", desc: "Recherche sémantique dans vos documents", color: "#3b82f6", shortColor: "blue" },
+  { id: 2, label: "Analyse", desc: "Extraction structurée et rapports", color: "#8b5cf6", shortColor: "violet" },
+  { id: 3, label: "Action", desc: "Actions avec validation humaine", color: "#f59e0b", shortColor: "amber" },
+];
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div
+        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: "rgba(59,130,246,0.12)",
+          border: "1px solid rgba(59,130,246,0.2)",
+        }}
+      >
+        <Bot size={11} className="text-blue-400" />
+      </div>
+      <div
+        className="px-3 py-2.5 rounded-xl rounded-tl-none"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-white/30"
+              style={{
+                animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const documents = useDocumentStore((state) => state.documents);
@@ -43,7 +72,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
     {
       id: "1",
       role: "assistant",
-      content: `Bonjour ! Je suis votre assistant GEDOS. J'ai ${documents.length} document${documents.length > 1 ? "s" : ""} chargé${documents.length > 1 ? "s" : ""} en mémoire. Comment puis-je vous aider ?`,
+      content: `Bonjour. Je suis votre assistant GEDOS avec accès à ${documents.length} document${documents.length !== 1 ? "s" : ""} indexé${documents.length !== 1 ? "s" : ""}. Comment puis-je vous aider ?`,
       timestamp: new Date(),
     },
   ]);
@@ -52,6 +81,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const [level, setLevel] = useState(1);
   const [showKB, setShowKB] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -103,7 +133,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
         {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "Une erreur réseau s'est produite. Veuillez réessayer.",
+          content: "Erreur réseau. Veuillez réessayer.",
           timestamp: new Date(),
         },
       ]);
@@ -112,144 +142,235 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const currentLevel = levels.find((l) => l.id === level)!;
+
   return (
-    <div className="flex flex-col h-full bg-card/30 rounded-2xl border border-border overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-xl border border-primary/20">
-            <Sparkles className="text-primary" size={18} />
+    <div
+      className="flex flex-col h-full rounded-xl overflow-hidden"
+      style={{
+        background: "hsl(240 12% 6%)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      {/* Chat header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: "rgba(59,130,246,0.12)",
+              border: "1px solid rgba(59,130,246,0.2)",
+            }}
+          >
+            <Sparkles size={13} className="text-blue-400" />
           </div>
           <div>
-            {compact ? (
-              <h2 className="font-semibold text-foreground text-sm">Assistant GEDOS</h2>
-            ) : (
-              <AnimatedGradientText className="font-bold text-base">
-                Assistant Sovereign
-              </AnimatedGradientText>
-            )}
+            <p className="text-[13px] font-semibold text-white/90">
+              {compact ? "Assistant GEDOS" : "Assistant Souverain"}
+            </p>
             <button
               onClick={() => setShowKB(!showKB)}
-              className="flex items-center gap-1.5 text-[10px] text-primary font-bold uppercase tracking-widest hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-[10px] font-medium transition-colors hover:text-white/60"
+              style={{ color: "rgba(59,130,246,0.7)" }}
             >
-              <Database size={10} />
-              <span>{documents.length} doc{documents.length !== 1 ? "s" : ""} en mémoire</span>
-              {showKB ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+              <Database size={9} />
+              {documents.length} doc{documents.length !== 1 ? "s" : ""} en mémoire
+              {showKB ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
             </button>
           </div>
         </div>
 
         {/* Level selector */}
-        <Tabs value={level.toString()} onValueChange={(v) => setLevel(Number(v))}>
-          <TabsList className="h-8 bg-muted/50">
-            {[1, 2, 3].map((l) => (
-              <TabsTrigger key={l} value={l.toString()} className="text-xs px-2.5 h-6 data-[state=active]:bg-primary data-[state=active]:text-white">
-                N{l}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div
+          className="flex items-center rounded-lg overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
+          {levels.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setLevel(l.id)}
+              className="px-2.5 py-1 text-[11px] font-semibold transition-all duration-150"
+              style={{
+                color: level === l.id ? "white" : "rgba(255,255,255,0.35)",
+                background: level === l.id ? l.color : "transparent",
+              }}
+            >
+              N{l.id}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Knowledge Base panel */}
+      {/* Knowledge base panel */}
       {showKB && (
-        <div className="bg-muted/30 border-b border-border p-3 flex flex-wrap gap-2">
+        <div
+          className="px-4 py-3 flex flex-wrap gap-1.5 shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
+        >
           {documents.length === 0 ? (
-            <span className="text-[10px] text-muted-foreground italic">Aucun document chargé...</span>
+            <span className="text-[11px] italic" style={{ color: "rgba(255,255,255,0.3)" }}>
+              Aucun document en mémoire
+            </span>
           ) : (
             documents.map((doc) => (
-              <div key={doc.id} className="flex items-center gap-1.5 px-2 py-1 bg-card border border-border rounded-md">
-                <FileText size={10} className="text-primary" />
-                <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{doc.name}</span>
+              <div
+                key={doc.id}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md"
+                style={{
+                  background: "rgba(59,130,246,0.08)",
+                  border: "1px solid rgba(59,130,246,0.15)",
+                }}
+              >
+                <FileText size={9} className="text-blue-400 shrink-0" />
+                <span className="text-[10px] font-medium truncate max-w-[100px]" style={{ color: "rgba(147,197,253,0.8)" }}>
+                  {doc.name}
+                </span>
               </div>
             ))
           )}
         </div>
       )}
 
-      {/* Level description */}
+      {/* Level description bar */}
       {!compact && (
-        <div className="px-4 py-2 bg-muted/20 border-b border-border">
-          <p className={cn("text-[10px] font-bold uppercase tracking-wider", levelConfig[level as keyof typeof levelConfig].color)}>
-            {levelConfig[level as keyof typeof levelConfig].label} — {levelConfig[level as keyof typeof levelConfig].description}
+        <div
+          className="px-4 py-2 shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
+            background: `${currentLevel.color}08`,
+          }}
+        >
+          <p className="text-[10px] font-semibold" style={{ color: `${currentLevel.color}cc` }}>
+            N{currentLevel.id} · {currentLevel.label} — {currentLevel.desc}
           </p>
         </div>
       )}
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 px-4 py-4">
         <div className="space-y-4">
-          {messages.map((m, index) => (
-            <BlurFade key={m.id} delay={index === messages.length - 1 ? 0 : 0} inView={false}>
-              <div className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
-                <div className="flex items-end gap-2">
-                  {m.role === "assistant" && (
-                    <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 mb-1">
-                      <Bot size={12} className="text-primary" />
-                    </div>
-                  )}
-                  <div
-                    className={cn(
-                      "max-w-[85%] p-3.5 rounded-2xl shadow-sm text-sm leading-relaxed",
-                      m.role === "user"
-                        ? "bg-primary text-white rounded-tr-none"
-                        : "bg-card border border-border text-card-foreground rounded-tl-none"
-                    )}
-                  >
-                    <p className="whitespace-pre-wrap">{m.content}</p>
-                  </div>
-                  {m.role === "user" && (
-                    <div className="w-6 h-6 rounded-full bg-muted border border-border flex items-center justify-center shrink-0 mb-1">
-                      <User size={12} className="text-muted-foreground" />
-                    </div>
-                  )}
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}
+            >
+              <div className={cn("flex items-end gap-2", m.role === "user" ? "flex-row-reverse" : "flex-row")}>
+                {/* Avatar */}
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mb-0.5"
+                  style={m.role === "assistant"
+                    ? { background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.2)" }
+                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }
+                  }
+                >
+                  {m.role === "assistant"
+                    ? <Bot size={11} className="text-blue-400" />
+                    : <User size={11} style={{ color: "rgba(255,255,255,0.5)" }} />
+                  }
                 </div>
-                <span className="mt-1 text-[9px] text-muted-foreground uppercase font-bold tracking-widest ml-8">
-                  {m.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
+
+                {/* Bubble */}
+                <div
+                  className="max-w-[80%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed"
+                  style={m.role === "user"
+                    ? {
+                      background: "#3b82f6",
+                      borderRadius: "12px 4px 12px 12px",
+                      color: "rgba(255,255,255,0.95)",
+                    }
+                    : {
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: "4px 12px 12px 12px",
+                      color: "rgba(255,255,255,0.85)",
+                    }
+                  }
+                >
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                </div>
               </div>
-            </BlurFade>
+
+              <span
+                className="text-[9px] font-medium mt-1 mx-8"
+                style={{ color: "rgba(255,255,255,0.2)" }}
+              >
+                {m.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
           ))}
 
-          {isTyping && (
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-                <Loader2 size={12} className="animate-spin text-primary" />
-              </div>
-              <span className="italic">L&apos;assistant parcourt votre base documentaire...</span>
-            </div>
-          )}
+          {isTyping && <TypingIndicator />}
           <div ref={chatEndRef} />
         </div>
       </ScrollArea>
 
-      {/* Input */}
-      <div className="p-3 border-t border-border bg-card/50 shrink-0">
+      {/* Input area */}
+      <div
+        className="px-3 pb-3 pt-2.5 shrink-0"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
         {level === 3 && (
-          <div className="mb-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">
-              ⚠ Mode Action — Toute action requiert votre validation
+          <div
+            className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.18)" }}
+          >
+            <AlertTriangle size={11} className="text-amber-400 shrink-0" />
+            <p className="text-[10px] font-medium text-amber-400">
+              Mode Action — Toute action requiert votre validation explicite
             </p>
           </div>
         )}
-        <div className="flex gap-2">
-          <Input
+
+        <div
+          className="flex items-end gap-2 rounded-xl px-3 py-2.5"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Posez une question sur vos documents..."
-            className="bg-muted/50 border-border focus-visible:ring-primary/50"
+            onKeyDown={handleKeyDown}
+            placeholder="Posez une question sur vos documents…"
+            rows={1}
             disabled={isTyping}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-[13px] placeholder:font-normal"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              maxHeight: "120px",
+              fontFamily: "inherit",
+            }}
           />
-          <Button
+          <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            size="icon"
-            className="shrink-0"
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150 disabled:opacity-30"
+            style={{
+              background: input.trim() && !isTyping ? "#3b82f6" : "rgba(255,255,255,0.07)",
+            }}
           >
-            <Send size={16} />
-          </Button>
+            <Send size={12} className="text-white" />
+          </button>
         </div>
+
+        <p className="text-[10px] text-center mt-2" style={{ color: "rgba(255,255,255,0.18)" }}>
+          Entrée pour envoyer · Maj+Entrée pour nouvelle ligne
+        </p>
       </div>
     </div>
   );
