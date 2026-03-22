@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   Download,
   FileSpreadsheet,
+  GitCompare,
+  BarChart2,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -32,6 +34,7 @@ interface Message {
   level?: number;
   timestamp: Date;
   file?: FileAttachment;
+  chart?: string; // SVG string
 }
 
 const levels = [
@@ -90,6 +93,9 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const [isTyping, setIsTyping] = useState(false);
   const [level, setLevel] = useState(1);
   const [showKB, setShowKB] = useState(false);
+  const [compareDoc1, setCompareDoc1] = useState("");
+  const [compareDoc2, setCompareDoc2] = useState("");
+  const [showCompare, setShowCompare] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -136,6 +142,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
           level,
           timestamp: new Date(),
           file: data.file || undefined,
+          chart: data.chart || undefined,
         },
       ]);
     } catch {
@@ -347,6 +354,18 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
                       <Download size={11} style={{ color: "rgba(255,255,255,0.4)" }} />
                     </button>
                   )}
+
+                  {/* SVG Chart */}
+                  {m.chart && (
+                    <div
+                      className="mt-2.5 rounded-xl overflow-hidden p-3"
+                      style={{
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.07)",
+                      }}
+                      dangerouslySetInnerHTML={{ __html: m.chart }}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -378,6 +397,70 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
             <p className="text-[10px] font-medium text-amber-400">
               Mode Action — Toute action requiert votre validation explicite
             </p>
+          </div>
+        )}
+
+        {/* N2 quick actions */}
+        {level === 2 && documents.filter(d => d.ocrStatus === "completed").length >= 1 && (
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {/* Compare */}
+            <button
+              onClick={() => setShowCompare(!showCompare)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all"
+              style={{
+                background: showCompare ? "rgba(139,92,246,0.2)" : "rgba(139,92,246,0.08)",
+                border: "1px solid rgba(139,92,246,0.25)",
+                color: "#a78bfa",
+              }}
+            >
+              <GitCompare size={11} /> Comparer des docs
+            </button>
+            {/* Chart */}
+            <button
+              onClick={() => setInput("Génère un graphique camembert à partir des données de mes documents")}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all"
+              style={{
+                background: "rgba(16,185,129,0.08)",
+                border: "1px solid rgba(16,185,129,0.2)",
+                color: "#34d399",
+              }}
+            >
+              <BarChart2 size={11} /> Graphique
+            </button>
+          </div>
+        )}
+
+        {/* Compare picker */}
+        {showCompare && level === 2 && (
+          <div
+            className="flex items-center gap-2 mb-2 p-2 rounded-lg flex-wrap"
+            style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.15)" }}
+          >
+            {[{ val: compareDoc1, set: setCompareDoc1, label: "Doc 1" }, { val: compareDoc2, set: setCompareDoc2, label: "Doc 2" }].map(({ val, set, label }) => (
+              <select
+                key={label}
+                value={val}
+                onChange={e => set(e.target.value)}
+                className="flex-1 h-7 px-2 rounded-md text-[11px] outline-none min-w-0"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", fontFamily: "inherit" }}
+              >
+                <option value="">{label}…</option>
+                {documents.filter(d => d.ocrStatus === "completed").map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            ))}
+            <button
+              disabled={!compareDoc1 || !compareDoc2 || compareDoc1 === compareDoc2}
+              onClick={() => {
+                setInput(`Compare le document "${compareDoc1}" avec le document "${compareDoc2}". Identifie les points communs, les différences clés et donne une synthèse comparative.`);
+                setShowCompare(false);
+              }}
+              className="px-3 h-7 rounded-lg text-[11px] font-semibold text-white transition-all disabled:opacity-30"
+              style={{ background: "#8b5cf6" }}
+            >
+              Comparer
+            </button>
           </div>
         )}
 
