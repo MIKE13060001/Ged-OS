@@ -30,7 +30,7 @@ interface DocumentState {
 
 export const useDocumentStore = create<DocumentState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       documents: [],
       selectedDocument: null,
       folders: [],
@@ -93,8 +93,8 @@ export const useDocumentStore = create<DocumentState>()(
           };
         });
       },
-      getVersions: (rootId) => {
-        return useDocumentStore.getState().versions[rootId] ?? [];
+      getVersions: (rootId): Document[] => {
+        return get().versions[rootId] ?? [];
       },
     }),
     {
