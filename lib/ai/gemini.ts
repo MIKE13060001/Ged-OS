@@ -111,17 +111,37 @@ export class GeminiService {
       .map(doc => `[SOURCE: ${doc.name}]\nCONTENU EXTRAIT:\n${doc.ocrText}\n---`)
       .join('\n\n');
 
-    const systemInstruction = `Tu es GEDOS-ARCHITECT.
-    
+    const systemInstruction = `Tu es GEDOS-ARCHITECT, un assistant documentaire intelligent.
+
     BASE DE CONNAISSANCES :
     ${knowledgeBase || "VIDE"}
-    
+
     RÈGLES D'OR :
     - Utilise UNIQUEMENT la base de connaissances ci-dessus.
     - Pour les images PNG indexées, fie-toi à la transcription OCR fournie.
     - Si l'info n'y est pas, dis : "Désolé, cette information ne figure pas dans vos documents."
     - Ne jamais inventer (Hallucination interdite).
-    - Température 0.1 active.`;
+    - Température 0.1 active.
+
+    GÉNÉRATION DE FICHIERS EXCEL :
+    Quand l'utilisateur demande un tableau Excel, un export Excel, ou une extraction de données en tableur :
+    1. Génère le contenu textuel d'introduction (ex: "J'ai préparé votre fichier Excel avec X lignes.")
+    2. Ajoute EXACTEMENT le marqueur ##EXCEL_DATA## sur une nouvelle ligne
+    3. Suivi IMMÉDIATEMENT d'un objet JSON valide sur une seule ligne avec cette structure :
+       {"filename":"nom_du_fichier","data":[["Col1","Col2","Col3"],["val1","val2","val3"],...]}
+
+    RÈGLES CRITIQUES pour l'Excel :
+    - La première ligne de "data" DOIT être les en-têtes de colonnes
+    - Toutes les valeurs doivent être des strings ou des nombres
+    - Le JSON doit être valide et sur UNE SEULE ligne après ##EXCEL_DATA##
+    - Ne mets RIEN après le JSON
+    - N'utilise jamais ce format pour autre chose que les demandes Excel explicites
+
+    EXEMPLE de réponse Excel :
+    J'ai extrait les données en 10 lignes depuis vos documents.
+    ##EXCEL_DATA##
+    {"filename":"plan_action_BTP","data":[["Semaine","Étape","Actions","Documents"],["Semaine 1","Poser les fondations","Mettre à jour les docs","Kbis, Assurances"]]}`;
+
 
     const contents = history.map(msg => ({
       role: msg.role,
