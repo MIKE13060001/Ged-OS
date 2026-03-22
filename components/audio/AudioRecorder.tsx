@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Mic, Square, Trash2, Sparkles, Loader2, CheckCircle2, Upload } from "lucide-react";
+import { useAuditStore } from "@/stores/auditStore";
 
 type SynthesisType = 'transcription' | 'cr-reunion' | 'synthese-rh' | 'resume-client' | 'liste-actions';
 
@@ -18,6 +19,7 @@ interface AudioRecorderProps {
 }
 
 export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
+  const { logEvent } = useAuditStore();
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -94,6 +96,7 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
         const result = data.text || "Transcription échouée.";
         setTranscription(result);
         onTranscription?.(result);
+        logEvent({ action: "Audio transcrit", detail: SYNTHESIS_OPTIONS.find(o => o.value === synthesisType)?.label ?? synthesisType, status: "success", user: "Utilisateur local" });
         setIsProcessing(false);
         setAudioBlob(null);
       };

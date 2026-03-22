@@ -3,6 +3,7 @@
 import { useState, KeyboardEvent } from "react";
 import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Plus, Pencil, Check } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
+import { useAuditStore } from "@/stores/auditStore";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -24,6 +25,7 @@ function openInNewTab(previewUrl: string) {
 
 export function DocumentViewer() {
   const { selectedDocument: doc, setSelectedDocument, removeDocument, updateDocument } = useDocumentStore();
+  const { logEvent } = useAuditStore();
   const isImage = doc?.mimeType.startsWith("image/");
   const isPdf = doc?.mimeType === "application/pdf";
 
@@ -70,6 +72,7 @@ export function DocumentViewer() {
     a.download = doc.originalName || doc.name;
     a.click();
     URL.revokeObjectURL(url);
+    logEvent({ action: "Document téléchargé", detail: doc.name, status: "success", user: "Utilisateur local" });
   }
 
   async function handleShare() {
