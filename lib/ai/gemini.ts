@@ -103,6 +103,78 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Generate a real Excel or DOCX file from a user request + knowledge base.
+   * Returns base64 file data ready to send to the client.
+   */
+  async generateFileFromRequest(
+    userMessage: string,
+    knowledgeBase: string
+  ): Promise<{
+    sheets: { name: string; headers: string[]; rows: string[][] }[];
+    filename: string;
+    textResponse: string;
+  }> {
+    const ai = this.getAI();
+
+    const prompt = `Tu es un générateur de fichiers Excel. Tu dois créer le contenu d'un fichier Excel basé sur la demande de l'utilisateur.
+
+BASE DE CONNAISSANCES DISPONIBLE :
+${knowledgeBase || "Aucun document. Génère des données d'exemple pertinentes selon la demande."}
+
+DEMANDE : "${userMessage}"
+
+Génère les données pour le fichier Excel. Réponds avec du JSON UNIQUEMENT, dans ce format exact :
+{
+  "filename": "nom-descriptif.xlsx",
+  "textResponse": "Description courte de ce qui a été généré",
+  "sheets": [
+    {
+      "name": "Nom de l'onglet",
+      "headers": ["En-tête 1", "En-tête 2", "En-tête 3"],
+      "rows": [
+        ["valeur1", "valeur2", "valeur3"],
+        ["valeur4", "valeur5", "valeur6"]
+      ]
+    }
+  ]
+}
+
+RÈGLES ABSOLUES :
+1. Retourne UNIQUEMENT du JSON valide, rien d'autre
+2. Utilise les vraies données de la base de connaissances si disponibles
+3. Minimum 5 lignes de données par onglet
+4. Maximum 3 onglets
+5. Les headers doivent être clairs et descriptifs
+6. Toutes les valeurs dans "rows" doivent être des strings`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { temperature: 0.1 }
+    });
+
+    const raw = (response.text || '').trim();
+    console.log('[GEDOS] File generation response (first 400):', raw.slice(0, 400));
+
+    // Extract JSON from response (handles markdown code blocks)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in response');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!parsed.sheets || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+      throw new Error('Invalid sheets data: ' + JSON.stringify(parsed).slice(0, 200));
+    }
+
+    console.log('[GEDOS] Parsed sheets:', parsed.sheets.length, 'filename:', parsed.filename);
+    return {
+      sheets: parsed.sheets,
+      filename: parsed.filename || 'export.xlsx',
+      textResponse: parsed.textResponse || 'Votre fichier Excel a été généré.',
+    };
+  }
+
   async chat(history: ChatMessage[], level: number = 1, documents: Document[]) {
     const ai = this.getAI();
     const validDocs = documents.filter(doc => doc.ocrStatus === 'completed' && doc.ocrText);
