@@ -1,37 +1,33 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Mic, Square, Trash2, Sparkles, Loader2, CheckCircle2, Upload, FolderPlus, ChevronDown } from "lucide-react";
-import { useAudioStore, SYNTHESIS_OPTIONS, type SynthesisType, type Recording } from "@/stores/audioStore";
-import { useDocumentStore } from "@/stores/documentStore";
+import { useState, useRef, useEffect } from "react";
+import { Mic, Square, RotateCcw, Loader2, Upload, ArrowRight } from "lucide-react";
+import { useAudioStore, type Recording } from "@/stores/audioStore";
 
 interface AudioRecorderProps {
+  selectedTemplateId: string;
   onTranscription?: (text: string) => void;
   onRecordingSaved?: (rec: Recording) => void;
 }
 
-export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecorderProps) {
+export function AudioRecorder({ selectedTemplateId, onTranscription, onRecordingSaved }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioMime, setAudioMime] = useState("audio/mp3");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcription, setTranscription] = useState<string | null>(null);
-  const [synthesisType, setSynthesisType] = useState<SynthesisType>("transcription");
-  const [showSynthesisMenu, setShowSynthesisMenu] = useState(false);
-  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
-  const [addedToGed, setAddedToGed] = useState(false);
   const [title, setTitle] = useState("");
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number>(0);
 
-  const { addRecording, updateRecording, markAddedToGed } = useAudioStore();
-  const { addDocument } = useDocumentStore();
-
-  const selectedSynthesis = SYNTHESIS_OPTIONS.find((o) => o.value === synthesisType)!;
+  const { addRecording, templates } = useAudioStore();
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0];
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
@@ -39,14 +35,65 @@ export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecord
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Waveform visualization
+  const drawWaveform = () => {
+    const canvas = canvasRef.current;
+    const analyser = analyserRef.current;
+    if (!canvas || !analyser) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const mid = h / 2;
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.lineWidth = 1.5;
+
+    const sliceWidth = w / bufferLength;
+    let x = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = v * mid;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+
+    ctx.stroke();
+    animFrameRef.current = requestAnimationFrame(drawWaveform);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Setup analyser for waveform
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
       mediaRecorder.current = new MediaRecorder(stream);
       chunks.current = [];
-      setTranscription(null);
-      setAddedToGed(false);
-      setCurrentRecordingId(null);
+
       mediaRecorder.current.ondataavailable = (e) => {
         if (e.data.size > 0) chunks.current.push(e.data);
       };
@@ -55,11 +102,17 @@ export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecord
         setAudioBlob(blob);
         setAudioMime("audio/mp3");
         stream.getTracks().forEach((t) => t.stop());
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        analyserRef.current = null;
       };
+
       mediaRecorder.current.start();
       setIsRecording(true);
       setDuration(0);
       timerInterval.current = setInterval(() => setDuration((d) => d + 1), 1000);
+
+      // Start waveform
+      drawWaveform();
     } catch {
       alert("Impossible d'accéder au microphone.");
     }
@@ -78,14 +131,8 @@ export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecord
     if (!file) return;
     setAudioBlob(file);
     setAudioMime(file.type || "audio/mp3");
-    setTranscription(null);
-    setAddedToGed(false);
-    setCurrentRecordingId(null);
     setTitle(file.name.replace(/\.[^.]+$/, ""));
-
-    // Estimate duration from file size (rough)
-    const estimatedDuration = Math.round(file.size / 16000);
-    setDuration(estimatedDuration);
+    setDuration(Math.round(file.size / 16000));
   };
 
   const handleProcess = async () => {
@@ -100,14 +147,17 @@ export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecord
         const res = await fetch("/api/transcribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audioBase64: base64, synthesisType, mimeType: audioMime }),
+          body: JSON.stringify({
+            audioBase64: base64,
+            synthesisType: selectedTemplate.id,
+            mimeType: audioMime,
+            customPrompt: selectedTemplate.isDefault ? undefined : selectedTemplate.prompt,
+          }),
         });
         const data = res.ok ? await res.json() : { text: "Transcription échouée." };
         const result = data.text || "Transcription échouée.";
-        setTranscription(result);
         onTranscription?.(result);
 
-        // Save to audioStore
         const recId = crypto.randomUUID();
         const recTitle = title || `Enregistrement ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
         const rec: Recording = {
@@ -115,360 +165,185 @@ export function AudioRecorder({ onTranscription, onRecordingSaved }: AudioRecord
           title: recTitle,
           audioDataUrl: dataUrl,
           durationSeconds: duration,
-          synthesisType,
+          synthesisType: selectedTemplate.id,
           transcription: result,
-          tags: [selectedSynthesis.label],
+          tags: [selectedTemplate.label],
           addedToGed: false,
           gedDocumentId: null,
           createdAt: new Date().toISOString(),
         };
         addRecording(rec);
-        setCurrentRecordingId(recId);
         onRecordingSaved?.(rec);
-
         setIsProcessing(false);
+        reset();
       };
     } catch {
       setIsProcessing(false);
-      setTranscription("Une erreur s'est produite lors de la transcription.");
     }
-  };
-
-  const handleAddToGed = () => {
-    if (!transcription || !currentRecordingId) return;
-
-    const recTitle = title || `Enregistrement ${new Date().toLocaleDateString("fr-FR")}`;
-    const docId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    addDocument({
-      id: docId,
-      tenantId: "default",
-      name: `${recTitle} — ${selectedSynthesis.label}`,
-      originalName: `${recTitle}.audio`,
-      mimeType: "text/plain",
-      sizeBytes: new Blob([transcription]).size,
-      storagePath: "",
-      version: 1,
-      ocrStatus: "completed",
-      ocrText: transcription,
-      extractedData: { source: "audio", synthesisType },
-      tags: ["audio", selectedSynthesis.label.toLowerCase()],
-      metadata: { audioRecordingId: currentRecordingId, synthesisType },
-      createdBy: "local",
-      createdAt: now,
-    });
-
-    markAddedToGed(currentRecordingId, docId);
-    setAddedToGed(true);
   };
 
   const reset = () => {
     setAudioBlob(null);
     setDuration(0);
-    setTranscription(null);
-    setCurrentRecordingId(null);
-    setAddedToGed(false);
     setTitle("");
   };
 
   return (
-    <div
-      className="w-full max-w-lg rounded-3xl overflow-hidden relative"
-      style={{
-        background: "hsl(240 12% 7%)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
-      }}
-    >
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent)" }} />
-
-      <div className="p-10 flex flex-col items-center text-center gap-7">
-        {/* Mic ring */}
-        <div className="relative flex items-center justify-center">
-          {isRecording && (
-            <>
-              <span className="absolute w-32 h-32 rounded-full animate-pulse-ring"
-                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }} />
-              <span className="absolute w-24 h-24 rounded-full animate-pulse-ring"
-                style={{ background: "rgba(239,68,68,0.06)", animationDelay: "0.4s" }} />
-            </>
-          )}
-          <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-500 relative z-10"
-            style={{
-              background: isRecording
-                ? "linear-gradient(135deg, rgba(239,68,68,0.2), rgba(239,68,68,0.1))"
-                : "rgba(255,255,255,0.04)",
-              border: isRecording
-                ? "1px solid rgba(239,68,68,0.4)"
-                : "1px solid rgba(255,255,255,0.08)",
-              boxShadow: isRecording ? "0 0 30px rgba(239,68,68,0.2)" : "none",
-              transform: isRecording ? "scale(1.05)" : "scale(1)",
-            }}
-          >
-            <Mic
-              size={34}
-              style={{ color: isRecording ? "#ef4444" : "rgba(255,255,255,0.3)" }}
-              className="transition-colors duration-300"
+    <div className="w-full">
+      {/* Waveform / Timer area */}
+      <div className="flex flex-col items-center gap-5 py-6">
+        {/* Waveform canvas */}
+        <div className="relative w-full h-16 flex items-center justify-center">
+          {isRecording ? (
+            <canvas
+              ref={canvasRef}
+              width={320}
+              height={64}
+              className="w-full h-full"
+              style={{ opacity: 0.6 }}
             />
-          </div>
-        </div>
-
-        {/* Title */}
-        <div>
-          <h2 className="text-xl font-black text-white mb-1.5">
-            {isRecording ? "Capture en cours…" : audioBlob ? "Prêt à analyser" : "Studio d'enregistrement"}
-          </h2>
-          <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-            {isRecording
-              ? "Voix capturée — traitement local souverain"
-              : "Transcription et synthèse par IA Gemini"}
-          </p>
-        </div>
-
-        {/* Timer */}
-        <div
-          className="text-5xl font-black tabular-nums tracking-tighter"
-          style={{
-            color: isRecording ? "#ef4444" : "rgba(255,255,255,0.9)",
-            fontVariantNumeric: "tabular-nums",
-            transition: "color 0.3s",
-          }}
-        >
-          {formatTime(duration)}
-        </div>
-
-        {/* Synthesis type selector */}
-        <div className="w-full relative">
-          <button
-            onClick={() => setShowSynthesisMenu(!showSynthesisMenu)}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-[13px] font-semibold transition-all"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.8)",
-            }}
-          >
-            <span className="flex items-center gap-2">
-              <span>{selectedSynthesis.icon}</span>
-              <span>{selectedSynthesis.label}</span>
-            </span>
-            <ChevronDown size={14} style={{ color: "rgba(255,255,255,0.4)", transform: showSynthesisMenu ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-          </button>
-
-          {showSynthesisMenu && (
-            <div
-              className="absolute z-20 top-full mt-1 w-full rounded-xl overflow-hidden"
-              style={{
-                background: "hsl(240 12% 10%)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
-              }}
-            >
-              {SYNTHESIS_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setSynthesisType(opt.value); setShowSynthesisMenu(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-[13px] transition-colors"
+          ) : (
+            <div className="flex items-center gap-[3px] h-8">
+              {Array.from({ length: 40 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-[2px] rounded-full transition-all duration-300"
                   style={{
-                    color: opt.value === synthesisType ? "#a78bfa" : "rgba(255,255,255,0.7)",
-                    background: opt.value === synthesisType ? "rgba(139,92,246,0.08)" : "transparent",
+                    height: audioBlob
+                      ? `${12 + Math.sin(i * 0.5) * 12}px`
+                      : "4px",
+                    background: audioBlob
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(255,255,255,0.06)",
                   }}
-                  onMouseEnter={(e) => { if (opt.value !== synthesisType) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                  onMouseLeave={(e) => { if (opt.value !== synthesisType) e.currentTarget.style.background = "transparent"; }}
-                >
-                  <span>{opt.icon}</span>
-                  <span className="font-medium">{opt.label}</span>
-                </button>
+                />
               ))}
             </div>
           )}
         </div>
 
-        {/* Title input when blob is ready */}
-        {audioBlob && !isRecording && !isProcessing && !transcription && (
+        {/* Timer */}
+        <div className="flex items-center gap-3">
+          <span
+            className="text-3xl font-mono font-light tracking-wider tabular-nums"
+            style={{
+              color: isRecording ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.4)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatTime(duration)}
+          </span>
+          {isRecording && (
+            <span
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ background: "rgba(255,255,255,0.7)" }}
+            />
+          )}
+        </div>
+
+        {/* Title input */}
+        {audioBlob && !isRecording && !isProcessing && (
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre de l'enregistrement (optionnel)"
-            className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white/90 placeholder:text-white/25 outline-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
+            placeholder="Titre (optionnel)"
+            className="w-full max-w-xs px-0 py-1 text-center text-[13px] font-medium text-white/80 placeholder:text-white/20 outline-none border-b bg-transparent"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
           />
         )}
+      </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-3 w-full justify-center">
-          {!isRecording && !audioBlob && (
-            <div className="flex items-center gap-2 w-full">
-              <button
-                onClick={startRecording}
-                className="flex-1 flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
-                style={{
-                  background: "linear-gradient(135deg, #6366f1, #3b82f6)",
-                  boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 8px 32px rgba(99,102,241,0.6)")}
-                onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 24px rgba(99,102,241,0.4)")}
-              >
-                <Mic size={18} />
-                Enregistrer
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors shrink-0"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.5)",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)")}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
-                title="Importer un fichier audio"
-              >
-                <Upload size={17} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-            </div>
-          )}
-
-          {isRecording && (
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-3 pb-2">
+        {!isRecording && !audioBlob && (
+          <>
             <button
-              onClick={stopRecording}
-              className="flex items-center gap-2.5 px-8 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-10 px-4 rounded-lg text-[12px] font-medium flex items-center gap-2 transition-all"
               style={{
-                background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                boxShadow: "0 8px 24px rgba(239,68,68,0.4)",
+                color: "rgba(255,255,255,0.4)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.02)",
               }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)")}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}
             >
-              <Square size={16} fill="white" />
-              Arrêter
+              <Upload size={13} />
+              Importer
             </button>
-          )}
-
-          {audioBlob && !isProcessing && !transcription && (
-            <>
-              <button
-                onClick={reset}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.5)",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.9)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
-              >
-                <Trash2 size={17} />
-              </button>
-              <button
-                onClick={handleProcess}
-                className="flex-1 flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-[15px] font-bold text-white transition-all"
-                style={{
-                  background: "linear-gradient(135deg, #059669, #10b981)",
-                  boxShadow: "0 8px 24px rgba(16,185,129,0.35)",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 8px 30px rgba(16,185,129,0.5)")}
-                onMouseLeave={e => (e.currentTarget.style.boxShadow = "0 8px 24px rgba(16,185,129,0.35)")}
-              >
-                <Sparkles size={17} />
-                Analyser — {selectedSynthesis.label}
-              </button>
-            </>
-          )}
-
-          {isProcessing && (
-            <div className="flex items-center gap-3 py-3 font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
-              <Loader2 size={20} className="animate-spin text-blue-400" />
-              <span className="text-sm">Traitement en cours…</span>
-            </div>
-          )}
-        </div>
-
-        {/* Transcription result */}
-        {transcription && (
-          <div className="w-full space-y-3">
-            <div
-              className="w-full rounded-2xl p-4 text-left"
+            <button
+              onClick={startRecording}
+              className="h-10 px-6 rounded-lg text-[13px] font-semibold flex items-center gap-2 transition-all text-white"
               style={{
-                background: "rgba(16,185,129,0.06)",
-                border: "1px solid rgba(16,185,129,0.2)",
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.15)",
               }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 size={13} className="text-emerald-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-                  {selectedSynthesis.label}
-                </span>
-              </div>
-              <div
-                className="text-[13px] leading-relaxed whitespace-pre-wrap"
-                style={{ color: "rgba(255,255,255,0.75)", maxHeight: "300px", overflowY: "auto" }}
-              >
-                {transcription}
-              </div>
-            </div>
+              <Mic size={14} />
+              Enregistrer
+            </button>
+            <input ref={fileInputRef} type="file" accept="audio/*" className="hidden" onChange={handleFileUpload} />
+          </>
+        )}
 
-            {/* Action buttons after transcription */}
-            <div className="flex items-center gap-2">
-              {!addedToGed && (
-                <button
-                  onClick={handleAddToGed}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all"
-                  style={{
-                    background: "rgba(99,102,241,0.1)",
-                    border: "1px solid rgba(99,102,241,0.25)",
-                    color: "#a78bfa",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.18)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "rgba(99,102,241,0.1)")}
-                >
-                  <FolderPlus size={15} />
-                  Ajouter à la GED
-                </button>
-              )}
-              {addedToGed && (
-                <div
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold"
-                  style={{
-                    background: "rgba(16,185,129,0.08)",
-                    border: "1px solid rgba(16,185,129,0.2)",
-                    color: "#34d399",
-                  }}
-                >
-                  <CheckCircle2 size={15} />
-                  Ajouté à la GED
-                </div>
-              )}
-              <button
-                onClick={reset}
-                className="px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all"
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.5)",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
-              >
-                Nouvel enregistrement
-              </button>
-            </div>
+        {isRecording && (
+          <button
+            onClick={stopRecording}
+            className="h-10 px-6 rounded-lg text-[13px] font-semibold flex items-center gap-2 text-white transition-all"
+            style={{
+              background: "rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            <Square size={12} fill="white" />
+            Arrêter
+          </button>
+        )}
+
+        {audioBlob && !isProcessing && (
+          <>
+            <button
+              onClick={reset}
+              className="h-10 w-10 rounded-lg flex items-center justify-center transition-all"
+              style={{ color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+              onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}
+            >
+              <RotateCcw size={14} />
+            </button>
+            <button
+              onClick={handleProcess}
+              className="h-10 px-5 rounded-lg text-[13px] font-semibold flex items-center gap-2 text-white transition-all"
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.15)",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.14)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+            >
+              Traiter
+              <ArrowRight size={13} />
+            </button>
+          </>
+        )}
+
+        {isProcessing && (
+          <div className="h-10 px-5 rounded-lg flex items-center gap-2.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <Loader2 size={15} className="animate-spin" />
+            <span className="text-[12px] font-medium">Analyse en cours…</span>
           </div>
         )}
       </div>
 
-      <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.3), transparent)" }} />
+      {/* Selected template indicator */}
+      <div className="flex justify-center pt-3 pb-1">
+        <span className="text-[10px] font-medium tracking-wide uppercase" style={{ color: "rgba(255,255,255,0.2)" }}>
+          {selectedTemplate.label}
+        </span>
+      </div>
     </div>
   );
 }

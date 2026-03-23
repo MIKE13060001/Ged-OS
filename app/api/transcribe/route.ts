@@ -3,7 +3,7 @@ import { GeminiService } from "@/lib/ai/gemini";
 
 export async function POST(req: NextRequest) {
   try {
-    const { audioBase64, synthesisType, mimeType } = await req.json();
+    const { audioBase64, synthesisType, mimeType, customPrompt } = await req.json();
 
     if (!audioBase64) {
       return NextResponse.json({ error: "Missing audio data" }, { status: 400 });
@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     const text = await gemini.transcribeAudio(
       audioBase64,
       synthesisType || 'transcription',
-      mimeType || 'audio/mp3'
+      mimeType || 'audio/mp3',
+      customPrompt
     );
 
     return NextResponse.json({ text: text || "Transcription non disponible." });
