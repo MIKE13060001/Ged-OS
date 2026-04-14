@@ -3,49 +3,39 @@
 import { useDocumentStore } from "@/stores/documentStore";
 import { ALL_MOCK_DOCUMENTS, MOCK_FOLDERS } from "@/lib/mockData";
 
-/**
- * Version du jeu de données mock.
- * Incrémenter pour forcer un re-seed au prochain chargement.
- */
 const SEED_VERSION = 5;
 
 /**
- * Seed le store avec les données mock si vide ou si la version a changé.
- * Aussi ré-hydrate le ocrText des mock docs (non persisté en localStorage).
- * Appelé une seule fois au mount du layout dashboard.
+ * Seed le store avec les données mock en mode démo (pas de Supabase).
+ * Quand Supabase est configuré, les docs viennent de la DB — pas de seed.
  */
 export function seedIfEmpty() {
+  // Skip seeding if Supabase is configured (data comes from DB)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (supabaseUrl && supabaseKey) return;
+
   const currentVersion = localStorage.getItem("gedos-seed-version");
   const state = useDocumentStore.getState();
 
-  // Re-seed si version différente ou store vide
   if (state.documents.length > 0 && currentVersion === String(SEED_VERSION)) {
-    // Ré-hydrater ocrText des mock docs (perdu après reload car exclu de localStorage)
     hydrateOcrText(state);
     return;
   }
 
-  // Reset complet du store
   state.clearAll();
 
-  // 1. Créer les dossiers
   for (const folder of MOCK_FOLDERS) {
     state.addFolder(folder);
   }
 
-  // 2. Ajouter tous les documents
   for (const doc of ALL_MOCK_DOCUMENTS) {
     state.addDocument(doc);
   }
 
-  // Marquer la version
   localStorage.setItem("gedos-seed-version", String(SEED_VERSION));
 }
 
-/**
- * Re-inject ocrText from mock data into store documents that lost it
- * (because ocrText is excluded from localStorage persistence).
- */
 function hydrateOcrText(state: ReturnType<typeof useDocumentStore.getState>) {
   const mockMap = new Map(ALL_MOCK_DOCUMENTS.map((d) => [d.originalName, d]));
 
