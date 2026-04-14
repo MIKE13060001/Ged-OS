@@ -1,9 +1,37 @@
 "use client";
 
-import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Download, Share2, Trash2, ExternalLink, Calendar, HardDrive, ShieldCheck, Tag, X, Building2, Receipt, Users, Hash, Euro, FileCheck } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+function MetaField({ icon: Icon, label, value, highlight }: { icon: React.ElementType; label: string; value: string; highlight?: boolean }) {
+  return (
+    <div
+      className="rounded-lg p-2.5"
+      style={{
+        background: highlight ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+        border: `1px solid ${highlight ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)"}`,
+      }}
+    >
+      <div className="flex items-center gap-1 mb-1">
+        <Icon size={9} style={{ color: highlight ? "#34d399" : "rgba(255,255,255,0.3)" }} />
+        <span className="text-[8px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>
+          {label}
+        </span>
+      </div>
+      <p
+        className="text-[12px] font-semibold truncate"
+        style={{ color: highlight ? "#34d399" : "rgba(255,255,255,0.75)" }}
+        title={value}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64] = dataUrl.split(",");
@@ -51,6 +79,21 @@ export function DocumentViewer() {
     await navigator.clipboard.writeText(text);
   }
 
+  // Convert data URL to blob URL for PDF iframe rendering
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!doc?.previewUrl) { setPdfBlobUrl(null); return; }
+    if (!doc.previewUrl.startsWith("data:")) { setPdfBlobUrl(doc.previewUrl); return; }
+    try {
+      const blob = dataUrlToBlob(doc.previewUrl);
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } catch {
+      setPdfBlobUrl(null);
+    }
+  }, [doc?.previewUrl]);
+
   const sizeLabel = doc
     ? doc.sizeBytes >= 1024 * 1024
       ? `${(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB`
@@ -69,6 +112,7 @@ export function DocumentViewer() {
           boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
         }}
       >
+        <VisuallyHidden><SheetTitle>Document</SheetTitle></VisuallyHidden>
         {doc && (
           <>
             {/* Header */}
@@ -127,13 +171,22 @@ export function DocumentViewer() {
                       alt={doc.name}
                       className="max-w-full max-h-64 object-contain rounded-lg p-4"
                     />
-                  ) : isPdf && doc.previewUrl ? (
+                  ) : isPdf && pdfBlobUrl ? (
                     <iframe
-                      src={doc.previewUrl}
+                      src={pdfBlobUrl}
                       title={doc.name}
                       className="w-full rounded-xl"
                       style={{ height: "420px", border: "none" }}
                     />
+                  ) : doc.ocrText ? (
+                    <div className="w-full p-4 overflow-y-auto" style={{ maxHeight: "420px" }}>
+                      <pre
+                        className="text-[9px] leading-[1.6] whitespace-pre-wrap break-all font-mono w-full"
+                        style={{ color: "rgba(255,255,255,0.7)", wordBreak: "break-word", overflowWrap: "anywhere" }}
+                      >
+                        {doc.ocrText}
+                      </pre>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center text-center p-8 gap-4">
                       <div
@@ -148,16 +201,6 @@ export function DocumentViewer() {
                           Ce format ne peut pas être prévisualisé directement.
                         </p>
                       </div>
-                      {doc.previewUrl && (
-                        <button
-                          onClick={() => openInNewTab(doc.previewUrl!)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all hover:opacity-90"
-                          style={{ background: "#3b82f6", color: "white" }}
-                        >
-                          <ExternalLink size={12} />
-                          Ouvrir dans un onglet
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -237,6 +280,90 @@ export function DocumentViewer() {
                   </div>
                 )}
 
+                {/* Extracted metadata */}
+                {doc.extractedData && Object.keys(doc.extractedData).length > 0 && (
+                  <div
+                    className="rounded-xl p-4 space-y-3"
+                    style={{
+                      background: "rgba(16,185,129,0.04)",
+                      border: "1px solid rgba(16,185,129,0.12)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileCheck size={11} className="text-emerald-400" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(16,185,129,0.8)" }}>
+                        Métadonnées extraites (OCR)
+                      </span>
+                    </div>
+
+                    {/* Type badge */}
+                    {doc.extractedData.type && (
+                      <span
+                        className="inline-block px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide"
+                        style={{
+                          background:
+                            doc.extractedData.type === "facture_fournisseur" ? "rgba(239,68,68,0.12)" :
+                            doc.extractedData.type === "facture_client" ? "rgba(16,185,129,0.12)" :
+                            doc.extractedData.type === "compte_rendu" ? "rgba(139,92,246,0.12)" :
+                            "rgba(255,255,255,0.06)",
+                          color:
+                            doc.extractedData.type === "facture_fournisseur" ? "#f87171" :
+                            doc.extractedData.type === "facture_client" ? "#34d399" :
+                            doc.extractedData.type === "compte_rendu" ? "#a78bfa" :
+                            "rgba(255,255,255,0.5)",
+                          border: `1px solid ${
+                            doc.extractedData.type === "facture_fournisseur" ? "rgba(239,68,68,0.2)" :
+                            doc.extractedData.type === "facture_client" ? "rgba(16,185,129,0.2)" :
+                            doc.extractedData.type === "compte_rendu" ? "rgba(139,92,246,0.2)" :
+                            "rgba(255,255,255,0.08)"
+                          }`,
+                        }}
+                      >
+                        {doc.extractedData.type.replace(/_/g, " ")}
+                      </span>
+                    )}
+
+                    {/* Fields grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {doc.extractedData.fournisseur && (
+                        <MetaField icon={Building2} label="Fournisseur" value={doc.extractedData.fournisseur} />
+                      )}
+                      {doc.extractedData.client && (
+                        <MetaField icon={Building2} label="Client" value={doc.extractedData.client} />
+                      )}
+                      {doc.extractedData.numero && (
+                        <MetaField icon={Hash} label="N° Facture" value={doc.extractedData.numero} />
+                      )}
+                      {doc.extractedData.date && (
+                        <MetaField icon={Calendar} label="Date" value={new Date(doc.extractedData.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} />
+                      )}
+                      {doc.extractedData.montantHT != null && (
+                        <MetaField icon={Euro} label="Montant HT" value={`${doc.extractedData.montantHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`} />
+                      )}
+                      {doc.extractedData.tva != null && doc.extractedData.tva > 0 && (
+                        <MetaField icon={Receipt} label="TVA" value={`${doc.extractedData.tva.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`} />
+                      )}
+                      {doc.extractedData.montantTTC != null && (
+                        <MetaField icon={Euro} label="Total TTC" value={`${doc.extractedData.montantTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`} highlight />
+                      )}
+                      {doc.extractedData.participants && (
+                        <div className="col-span-2">
+                          <MetaField icon={Users} label="Participants" value={doc.extractedData.participants.join(", ")} />
+                        </div>
+                      )}
+                    </div>
+
+                    {doc.extractedData.objet && (
+                      <div className="pt-1">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider mb-1" style={{ color: "rgba(255,255,255,0.25)" }}>Objet</p>
+                        <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
+                          {doc.extractedData.objet}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* OCR text */}
                 {doc.ocrText && (
                   <div>
@@ -247,12 +374,12 @@ export function DocumentViewer() {
                       className="rounded-xl p-4 max-h-40 overflow-y-auto"
                       style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
                     >
-                      <p
-                        className="text-[11px] leading-relaxed whitespace-pre-wrap font-mono"
-                        style={{ color: "rgba(255,255,255,0.5)" }}
+                      <pre
+                        className="text-[9px] leading-[1.6] whitespace-pre-wrap break-all font-mono w-full"
+                        style={{ color: "rgba(255,255,255,0.5)", wordBreak: "break-word", overflowWrap: "anywhere" }}
                       >
                         {doc.ocrText}
-                      </p>
+                      </pre>
                     </div>
                   </div>
                 )}

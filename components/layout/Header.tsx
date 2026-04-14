@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Command } from "lucide-react";
+import { Search, Command } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationPanel } from "@/components/ui/NotificationPanel";
 
 export function Header() {
   return (
@@ -77,15 +78,7 @@ export function Header() {
         </div>
 
         {/* Notification */}
-        <button
-          className="relative w-7 h-7 rounded-md flex items-center justify-center transition-all duration-150 hover:bg-white/[0.06] active:bg-white/[0.08]"
-        >
-          <Bell size={14} style={{ color: "rgba(255,255,255,0.4)" }} />
-          <span
-            className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full"
-            style={{ background: "#3b82f6", boxShadow: "0 0 4px rgba(59,130,246,0.8)" }}
-          />
-        </button>
+        <NotificationPanel />
 
         {/* Divider */}
         <div className="w-px h-4 mx-0.5" style={{ background: "rgba(255,255,255,0.07)" }} />
@@ -97,7 +90,7 @@ export function Header() {
               className="flex items-center gap-2 px-2 py-1 rounded-md transition-all duration-150 hover:bg-white/[0.05] group"
             >
               <div className="text-right hidden md:block">
-                <p className="text-[11px] font-semibold text-white/85 leading-none">G. Architect</p>
+                <p className="text-[11px] font-semibold text-white/85 leading-none">Valentin DOS</p>
                 <p
                   className="text-[9px] font-medium mt-0.5"
                   style={{ color: "rgba(99,102,241,0.75)" }}
@@ -109,7 +102,7 @@ export function Header() {
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-bold text-white shrink-0"
                 style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
               >
-                GA
+                V
               </div>
             </button>
           </DropdownMenuTrigger>
@@ -124,8 +117,8 @@ export function Header() {
           >
             <DropdownMenuLabel className="font-normal py-2.5">
               <div className="flex flex-col gap-0.5">
-                <p className="text-sm font-semibold text-white/90">G. Architect</p>
-                <p className="text-[11px] text-white/38">admin@gedos.fr</p>
+                <p className="text-sm font-semibold text-white/90">Valentin DOS</p>
+<p className="text-[11px] text-white/38">valentin@documentsofficesolutions.fr</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator style={{ background: "rgba(255,255,255,0.07)" }} />

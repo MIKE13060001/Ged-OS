@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send,
   Database,
@@ -12,13 +12,19 @@ import {
   FileSpreadsheet,
   GitCompare,
   BarChart2,
-  Sparkles,
   User,
+  Mic,
+  MicOff,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { useDocumentStore } from "@/stores/documentStore";
+import { useAudioStore } from "@/stores/audioStore";
 import { useAuditStore } from "@/stores/auditStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ActionApproval, type ActionPayload } from "@/components/assistant/ActionApproval";
+import { ChartRenderer, type ChartData } from "@/components/assistant/ChartRenderer";
 
 interface FileAttachment {
   base64: string;
@@ -35,6 +41,7 @@ interface Message {
   timestamp: Date;
   file?: FileAttachment;
   chart?: string;
+  chartData?: ChartData;
   action?: ActionPayload & { status?: "pending" | "approved" | "rejected" };
 }
 
@@ -62,14 +69,8 @@ const levels = [
 function TypingDots() {
   return (
     <div className="flex items-center gap-2.5 py-1">
-      <div
-        className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
-        style={{
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <Sparkles size={11} style={{ color: "rgba(255,255,255,0.4)" }} />
+      <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-white/90">
+        <img src="/dos-logo.png" alt="DOS" className="w-4 h-4 object-contain" />
       </div>
       <div
         className="px-3 py-2.5 rounded-xl"
@@ -97,13 +98,19 @@ function TypingDots() {
 
 export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const documents = useDocumentStore((state) => state.documents);
+  const recordings = useAudioStore((state) => state.recordings);
   const logEvent = useAuditStore((state) => state.logEvent);
+
+  // Pre-compute stats for RAG panel
+  const indexedDocs = documents.filter(d => d.ocrStatus === 'completed' && (d.ocrText?.trim() || Object.keys(d.extractedData || {}).length > 0));
+  const pendingDocs = documents.filter(d => d.ocrStatus !== 'completed');
+  const audioWithTranscription = recordings.filter(r => r.transcription?.trim());
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
-      content: `Assistant GEDOS initialisé — ${documents.length} document${documents.length !== 1 ? "s" : ""} en mémoire. Que souhaitez-vous analyser ?`,
+      content: `Assistant Documents Office Solutions initialisé — ${documents.length} document${documents.length !== 1 ? "s" : ""} en mémoire. Je peux analyser vos documents, calculer des totaux, comparer des factures et répondre à toutes vos questions.`,
       timestamp: new Date(),
     },
   ]);
@@ -116,6 +123,116 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
   const [showCompare, setShowCompare] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Voice input
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  const stopRecording = useCallback(() => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        audioCtx.close();
+        if (chunksRef.current.length === 0) return;
+
+        setIsTranscribing(true);
+        try {
+          const blob = new Blob(chunksRef.current, { type: mimeType });
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+            reader.readAsDataURL(blob);
+          });
+
+          const res = await fetch("/api/transcribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              audioBase64: base64,
+              synthesisType: "transcription",
+              mimeType: mimeType.split(";")[0],
+              customPrompt: `Transcris fidèlement cet enregistrement vocal. L'audio peut contenir des bruits de fond, une mauvaise prononciation ou un accent. Corrige les erreurs évidentes de prononciation pour produire un texte clair et correct en français. Ne résume pas — transcris mot à mot en corrigeant la grammaire et l'orthographe si nécessaire. Réponds UNIQUEMENT avec le texte transcrit, rien d'autre.`,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const text = (data.text || "").trim();
+            if (text && text !== "Transcription non disponible.") {
+              setInput(text);
+              // Auto-send after setting input
+              setTimeout(() => {
+                inputRef.current?.focus();
+              }, 100);
+            }
+          }
+        } catch (err) {
+          console.error("Voice transcription error:", err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+
+      // Silence detection — stop after 3s of silence
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let lastSoundTime = Date.now();
+
+      const checkSilence = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        if (avg > 8) lastSoundTime = Date.now();
+        if (Date.now() - lastSoundTime > 3000 && isRecording) {
+          stopRecording();
+          return;
+        }
+        animFrameRef.current = requestAnimationFrame(checkSilence);
+      };
+      checkSilence();
+    } catch (err) {
+      console.error("Microphone access error:", err);
+    }
+  }, [isRecording, stopRecording]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -146,7 +263,17 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history, level, documents }),
+        body: JSON.stringify({
+          history,
+          level,
+          documents,
+          audioTranscriptions: audioWithTranscription.map(r => ({
+            title: r.title,
+            transcription: r.transcription!,
+            synthesisType: r.synthesisType,
+            createdAt: r.createdAt,
+          })),
+        }),
       });
 
       const data = res.ok
@@ -163,6 +290,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
           timestamp: new Date(),
           file: data.file || undefined,
           chart: data.chart || undefined,
+          chartData: data.chartData || undefined,
           action: data.action ? { ...data.action, status: "pending" } : undefined,
         },
       ]);
@@ -204,21 +332,15 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.09)",
-            }}
-          >
-            <Sparkles size={13} style={{ color: "rgba(255,255,255,0.55)" }} />
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-white/90">
+            <img src="/dos-logo.png" alt="DOS" className="w-5 h-5 object-contain" />
           </div>
           <div>
             <p
               className="text-[12px] font-semibold"
               style={{ color: "rgba(255,255,255,0.82)" }}
             >
-              {compact ? "Assistant GEDOS" : "Assistant Souverain"}
+              {compact ? "Assistant Documents Office Solutions" : "Assistant Souverain"}
             </p>
             <button
               onClick={() => setShowKB(!showKB)}
@@ -232,7 +354,8 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
               }
             >
               <Database size={9} />
-              {documents.length} doc{documents.length !== 1 ? "s" : ""}
+              {indexedDocs.length}/{documents.length} doc{documents.length !== 1 ? "s" : ""}
+              {audioWithTranscription.length > 0 && ` · ${audioWithTranscription.length} audio`}
               {showKB ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
             </button>
           </div>
@@ -269,45 +392,81 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* KB panel */}
+      {/* RAG Knowledge Panel */}
       {showKB && (
         <div
-          className="px-4 py-3 flex flex-wrap gap-1.5 shrink-0"
+          className="px-4 py-3 shrink-0 space-y-2 max-h-[240px] overflow-y-auto"
           style={{
             borderBottom: "1px solid rgba(255,255,255,0.05)",
             background: "rgba(255,255,255,0.015)",
           }}
         >
-          {documents.length === 0 ? (
-            <span
-              className="text-[11px] italic"
-              style={{ color: "rgba(255,255,255,0.28)" }}
-            >
-              Aucun document en mémoire
+          {/* Stats bar */}
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-[10px] font-semibold" style={{ color: "rgba(16,185,129,0.7)" }}>
+              {indexedDocs.length} indexé{indexedDocs.length !== 1 ? 's' : ''}
             </span>
-          ) : (
-            documents.map((doc) => (
+            {pendingDocs.length > 0 && (
+              <span className="text-[10px] font-semibold" style={{ color: "rgba(245,158,11,0.7)" }}>
+                {pendingDocs.length} en attente
+              </span>
+            )}
+            {audioWithTranscription.length > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "rgba(139,92,246,0.7)" }}>
+                <Mic size={8} /> {audioWithTranscription.length} audio{audioWithTranscription.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* Document list */}
+          <div className="flex flex-wrap gap-1">
+            {documents.map((doc) => {
+              const indexed = doc.ocrStatus === 'completed' && (doc.ocrText?.trim() || Object.keys(doc.extractedData || {}).length > 0);
+              return (
+                <div
+                  key={doc.id}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md"
+                  style={{
+                    background: indexed ? "rgba(16,185,129,0.06)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${indexed ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.06)"}`,
+                  }}
+                  title={indexed ? `Indexé — ${doc.ocrText?.length || 0} chars` : 'Non indexé'}
+                >
+                  {indexed ? (
+                    <CheckCircle2 size={8} style={{ color: "rgba(16,185,129,0.6)" }} />
+                  ) : (
+                    <XCircle size={8} style={{ color: "rgba(245,158,11,0.5)" }} />
+                  )}
+                  <span
+                    className="text-[10px] font-medium truncate max-w-[120px]"
+                    style={{ color: indexed ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.30)" }}
+                  >
+                    {doc.name}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Audio transcriptions */}
+            {audioWithTranscription.map((rec) => (
               <div
-                key={doc.id}
+                key={rec.id}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(139,92,246,0.06)",
+                  border: "1px solid rgba(139,92,246,0.15)",
                 }}
               >
-                <FileText
-                  size={9}
-                  style={{ color: "rgba(255,255,255,0.35)" }}
-                />
+                <Mic size={8} style={{ color: "rgba(139,92,246,0.6)" }} />
                 <span
-                  className="text-[10px] font-medium truncate max-w-[100px]"
-                  style={{ color: "rgba(255,255,255,0.50)" }}
+                  className="text-[10px] font-medium truncate max-w-[120px]"
+                  style={{ color: "rgba(255,255,255,0.55)" }}
                 >
-                  {doc.name}
+                  {rec.title}
                 </span>
               </div>
-            ))
-          )}
+            ))}
+          </div>
         </div>
       )}
 
@@ -345,17 +504,15 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
               >
                 {/* Avatar */}
                 <div
-                  className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mb-0.5"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mb-0.5 overflow-hidden"
+                  style={
+                    m.role === "assistant"
+                      ? { background: "rgba(255,255,255,0.9)" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }
+                  }
                 >
                   {m.role === "assistant" ? (
-                    <Sparkles
-                      size={11}
-                      style={{ color: "rgba(255,255,255,0.45)" }}
-                    />
+                    <img src="/dos-logo.png" alt="DOS" className="w-4 h-4 object-contain" />
                   ) : (
                     <User
                       size={11}
@@ -366,7 +523,7 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
 
                 {/* Bubble */}
                 <div
-                  className="max-w-[80%] text-[13px] leading-relaxed overflow-hidden"
+                  className={`${m.chartData ? "max-w-[95%]" : "max-w-[80%]"} text-[13px] leading-relaxed overflow-hidden`}
                   style={
                     m.role === "user"
                       ? {
@@ -443,8 +600,11 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
                     </button>
                   )}
 
-                  {/* SVG Chart */}
-                  {m.chart && (
+                  {/* Recharts Chart */}
+                  {m.chartData && <ChartRenderer data={m.chartData} />}
+
+                  {/* Legacy SVG Chart (rétrocompat) */}
+                  {m.chart && !m.chartData && (
                     <div
                       className="mt-2.5 rounded-xl overflow-hidden p-3"
                       style={{
@@ -699,6 +859,27 @@ export function ChatInterface({ compact = false }: { compact?: boolean }) {
               fontFamily: "inherit",
             }}
           />
+          {/* Voice input button */}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isTyping || isTranscribing}
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150 disabled:opacity-25"
+            title={isRecording ? "Arrêter l'enregistrement" : "Dicter un message"}
+            style={{
+              background: isRecording ? "rgba(239,68,68,0.15)" : isTranscribing ? "rgba(59,130,246,0.10)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${isRecording ? "rgba(239,68,68,0.30)" : "rgba(255,255,255,0.07)"}`,
+            }}
+          >
+            {isTranscribing ? (
+              <Loader2 size={12} className="animate-spin" style={{ color: "#60a5fa" }} />
+            ) : isRecording ? (
+              <MicOff size={12} style={{ color: "#f87171" }} />
+            ) : (
+              <Mic size={12} style={{ color: "rgba(255,255,255,0.35)" }} />
+            )}
+          </button>
+
+          {/* Send button */}
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}

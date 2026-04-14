@@ -26,6 +26,7 @@ interface DocumentState {
   updateDocument: (id: string, patch: Partial<Document>) => void;
   addVersion: (rootId: string, newDoc: Document) => void;
   getVersions: (rootId: string) => Document[];
+  clearAll: () => void;
 }
 
 export const useDocumentStore = create<DocumentState>()(
@@ -96,10 +97,18 @@ export const useDocumentStore = create<DocumentState>()(
       getVersions: (rootId): Document[] => {
         return get().versions[rootId] ?? [];
       },
+      clearAll: () => set({ documents: [], folders: [], selectedDocument: null, selectedFolderId: null, versions: {} }),
     }),
     {
       name: 'gedos-sovereign-vault',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Exclude only previewUrl (large base64 blobs). Keep ocrText + extractedData for full KB access.
+        documents: state.documents.map(({ previewUrl, ...rest }) => rest),
+        folders: state.folders,
+        selectedFolderId: state.selectedFolderId,
+        versions: state.versions,
+      }),
     }
   )
 );

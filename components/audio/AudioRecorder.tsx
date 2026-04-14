@@ -151,7 +151,8 @@ export function AudioRecorder({ selectedTemplateId, onTranscription, onRecording
             audioBase64: base64,
             synthesisType: selectedTemplate.id,
             mimeType: audioMime,
-            customPrompt: selectedTemplate.isDefault ? undefined : selectedTemplate.prompt,
+            customPrompt: selectedTemplate.prompt,
+            outputTemplate: selectedTemplate.outputTemplate,
           }),
         });
         const data = res.ok ? await res.json() : { text: "Transcription échouée." };

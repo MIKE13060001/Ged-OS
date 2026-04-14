@@ -139,7 +139,7 @@ export default function DocumentsPage() {
 
   const folderFiltered = selectedFolderId
     ? documents.filter((d) => d.folderId === selectedFolderId)
-    : documents.filter((d) => !d.folderId);
+    : documents;
 
   const filteredDocuments = folderFiltered.filter((doc) => {
     if (!searchQuery.trim()) return true;
@@ -212,22 +212,22 @@ export default function DocumentsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
             icon={FileCheck} label="Documents indexés"
-            value={documents.length} trend="+12%" up={true}
+            value={documents.filter(d => d.ocrStatus === "completed").length} trend={`${documents.length} total`} up={true}
             accentColor="#3b82f6" delay={0}
           />
           <StatCard
             icon={Zap} label="Précision OCR"
-            value="98.4" unit="%" trend="+2%" up={true}
+            value={documents.length > 0 ? Math.round(documents.filter(d => d.ocrStatus === "completed").length / documents.length * 100 * 10) / 10 : 0} unit="%" trend={`${documents.filter(d => d.ocrStatus === "completed").length}/${documents.length}`} up={true}
             accentColor="#f59e0b" delay={0.04}
           />
           <StatCard
             icon={Bell} label="Actions en attente"
-            value={14} trend="-5%" up={false}
+            value={documents.filter(d => d.ocrStatus === "pending" || d.ocrStatus === "processing").length} trend={documents.filter(d => d.ocrStatus === "failed").length > 0 ? `${documents.filter(d => d.ocrStatus === "failed").length} échec(s)` : "Aucun échec"} up={false}
             accentColor="#8b5cf6" delay={0.08}
           />
           <StatCard
             icon={HardDrive} label="Espace utilisé"
-            value="4.2" unit="GB" trend="+1%" up={true}
+            value={(() => { const totalMB = documents.reduce((sum, d) => sum + d.sizeBytes, 0) / (1024 * 1024); return totalMB >= 1000 ? (totalMB / 1024).toFixed(1) : totalMB.toFixed(1); })()} unit={documents.reduce((sum, d) => sum + d.sizeBytes, 0) / (1024 * 1024) >= 1000 ? "GB" : "MB"} trend={`${documents.length} fichiers`} up={true}
             accentColor="#10b981" delay={0.12}
           />
         </div>
@@ -375,7 +375,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* Document grid */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="px-6 py-5">
         <DocumentGrid documents={activeTab === "corbeille" ? [] : filteredDocuments} />
       </div>
 

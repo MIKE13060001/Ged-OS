@@ -8,13 +8,18 @@ const FILE_KEYWORDS = [
   "create", "generate", "export", "file", "spreadsheet",
 ];
 
+const CHART_KEYWORDS = ["graphique", "chart", "camembert", "diagramme", "courbe", "histogramme", "visualisation", "graph"];
+
 function mightBeFileRequest(message: string): boolean {
   const lower = message.toLowerCase();
+  // If the user asks for a chart/graph, don't intercept as file generation
+  if (CHART_KEYWORDS.some((kw) => lower.includes(kw))) return false;
   return FILE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 const EXCEL_TRIGGER = "##EXCEL_DATA##";
 const SVG_TRIGGER = "##SVG_CHART##";
+const CHART_TRIGGER = "##CHART_DATA##";
 const ACTION_TRIGGER = "##ACTION##";
 
 function parseExcelAction(text: string): {
@@ -47,7 +52,7 @@ function parseExcelAction(text: string): {
 
 export async function POST(req: NextRequest) {
   try {
-    const { history, level, documents } = await req.json();
+    const { history, level, documents, audioTranscriptions } = await req.json();
 
     if (!history || !Array.isArray(history)) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
@@ -89,10 +94,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Normal chat response
-    const response = await gemini.chat(history, level || 1, documents || []);
+    const response = await gemini.chat(history, level || 1, documents || [], audioTranscriptions || []);
     const rawText = response.text || "";
 
-    // Parse SVG chart marker
+    // Parse structured chart data (Recharts JSON)
+    const chartIdx = rawText.indexOf(CHART_TRIGGER);
+    if (chartIdx !== -1) {
+      const beforeChart = rawText.substring(0, chartIdx).trim();
+      const afterChart = rawText.substring(chartIdx + CHART_TRIGGER.length).trim();
+      try {
+        const jsonMatch = afterChart.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const chartData = JSON.parse(jsonMatch[0]);
+          if (chartData.type && chartData.data) {
+            return NextResponse.json({
+              text: beforeChart || "Voici votre graphique.",
+              chartData,
+            });
+          }
+        }
+      } catch {
+        // fallback — return text without chart
+      }
+    }
+
+    // Legacy SVG chart marker (rétrocompat)
     const svgIdx = rawText.indexOf(SVG_TRIGGER);
     if (svgIdx !== -1) {
       const beforeSvg = rawText.substring(0, svgIdx).trim();

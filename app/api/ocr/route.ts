@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("OCR API error:", error);
     return NextResponse.json(
-      { error: "OCR processing failed", text: "", tags: ["error"] },
+      { error: "OCR processing failed", text: "", tags: ["error"], extractedData: {} },
       { status: 500 }
     );
   }

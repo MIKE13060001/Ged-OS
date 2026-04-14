@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { AudioRecorder } from "@/components/audio/AudioRecorder";
 import { BlurFade } from "@/components/magicui/blur-fade";
-import { useAudioStore, type SynthesisTemplate } from "@/stores/audioStore";
+import { useAudioStore, type SynthesisTemplate, type TemplateCategory, TEMPLATE_CATEGORIES } from "@/stores/audioStore";
 import { useDocumentStore } from "@/stores/documentStore";
 import {
   Mic,
@@ -34,12 +34,51 @@ function TemplateDialog({
   onClose,
 }: {
   initial?: SynthesisTemplate;
-  onSave: (data: { label: string; prompt: string }) => void;
+  onSave: (data: { label: string; prompt: string; category: TemplateCategory; outputTemplate?: string }) => void;
   onClose: () => void;
 }) {
   const [label, setLabel] = useState(initial?.label ?? "");
   const [prompt, setPrompt] = useState(initial?.prompt ?? "");
+  const [category, setCategory] = useState<TemplateCategory>(initial?.category ?? "general");
+  const [outputTemplate, setOutputTemplate] = useState(initial?.outputTemplate ?? "");
+  const [generating, setGenerating] = useState(false);
   const valid = label.trim().length > 0 && prompt.trim().length > 0;
+
+  const generateTemplate = async () => {
+    if (!label.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          history: [{
+            role: "user",
+            content: `Génère un modèle de compte-rendu Markdown pour le type de document suivant : "${label}" (catégorie : ${TEMPLATE_CATEGORIES.find(c => c.id === category)?.label || category}).
+
+INSTRUCTIONS :
+- Le template doit contenir des sections pertinentes avec des placeholders [entre crochets]
+- Inclus des tableaux markdown si pertinent (actions, décisions, etc.)
+- Sois professionnel et structuré
+- Commence par un titre H1 et les métadonnées (date, participants, lieu)
+- Adapte les sections au type de document
+- RÉPONDS UNIQUEMENT avec le template Markdown, rien d'autre.`
+          }],
+          level: 1,
+          documents: [],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.response || data.text || "";
+        setOutputTemplate(text);
+        if (!prompt.trim()) {
+          setPrompt(`Analyse l'enregistrement audio et produis un document structuré en suivant le modèle de sortie fourni. Remplis chaque section avec les informations extraites. Si une info n'est pas mentionnée, indique "Non mentionné".`);
+        }
+      }
+    } catch { /* ignore */ }
+    setGenerating(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -49,7 +88,7 @@ function TemplateDialog({
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-lg mx-4 rounded-2xl"
+        className="relative w-full max-w-2xl mx-4 rounded-2xl max-h-[90vh] flex flex-col"
         style={{
           background: "hsl(240 10% 9%)",
           border: "1px solid rgba(255,255,255,0.10)",
@@ -58,16 +97,13 @@ function TemplateDialog({
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-4"
+          className="flex items-center justify-between px-6 py-4 shrink-0"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
         >
           <div className="flex items-center gap-2.5">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <LayoutTemplate size={13} style={{ color: "rgba(255,255,255,0.5)" }} />
             </div>
@@ -86,60 +122,110 @@ function TemplateDialog({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <div>
-            <label
-              className="block text-[10px] font-bold uppercase tracking-widest mb-2"
-              style={{ color: "rgba(255,255,255,0.28)" }}
-            >
-              Nom du template
-            </label>
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Ex: Entretien technique, Brief marketing…"
-              className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none transition-all"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.82)",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
-            />
+        {/* Body — scrollable */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+          {/* Name + Category row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.28)" }}>
+                Nom du template
+              </label>
+              <input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Ex: Brief marketing, Entretien annuel…"
+                className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none transition-all"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.82)" }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.28)" }}>
+                Catégorie
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {TEMPLATE_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setCategory(cat.id)}
+                    className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all"
+                    style={{
+                      background: category === cat.id ? `${cat.color}20` : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${category === cat.id ? `${cat.color}40` : "rgba(255,255,255,0.06)"}`,
+                      color: category === cat.id ? cat.color : "rgba(255,255,255,0.35)",
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
+          {/* Instructions */}
           <div>
-            <label
-              className="block text-[10px] font-bold uppercase tracking-widest mb-2"
-              style={{ color: "rgba(255,255,255,0.28)" }}
-            >
+            <label className="block text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.28)" }}>
               Instructions pour l&apos;IA
             </label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Décris précisément comment l'IA doit traiter l'audio : format attendu, sections requises, ton, style…"
-              rows={5}
+              placeholder="Décris comment l'IA doit traiter l'audio : ton, style, sections à extraire…"
+              rows={3}
               className="w-full px-3.5 py-2.5 rounded-xl text-[13px] outline-none resize-none transition-all leading-relaxed"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.82)",
-              }}
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.82)" }}
               onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
             />
-            <p className="text-[10px] mt-1.5" style={{ color: "rgba(255,255,255,0.22)" }}>
-              {prompt.length} caractères · Le prompt est envoyé directement à Gemini avec l&apos;audio.
+            <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.20)" }}>
+              Ces instructions guident l&apos;IA sur le traitement de l&apos;audio. Le modèle de sortie ci-dessous définit la structure du résultat.
+            </p>
+          </div>
+
+          {/* Output template */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>
+                Modèle de sortie (Markdown)
+              </label>
+              <button
+                onClick={generateTemplate}
+                disabled={generating || !label.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all"
+                style={{
+                  background: generating ? "rgba(59,130,246,0.08)" : "rgba(59,130,246,0.12)",
+                  border: "1px solid rgba(59,130,246,0.25)",
+                  color: generating ? "rgba(59,130,246,0.5)" : "#60a5fa",
+                  cursor: generating || !label.trim() ? "wait" : "pointer",
+                }}
+              >
+                {generating ? (
+                  <><svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" /></svg> Génération…</>
+                ) : (
+                  <>Pré-rédiger par l&apos;IA</>
+                )}
+              </button>
+            </div>
+            <textarea
+              value={outputTemplate}
+              onChange={(e) => setOutputTemplate(e.target.value)}
+              placeholder={`# TITRE DU COMPTE-RENDU\n\n**Date** : [date]\n**Participants** : [noms]\n\n## 1. Points abordés\n- [point 1]\n\n## 2. Décisions\n| # | Décision | Responsable |\n|---|----------|-------------|\n\n(Cliquez "Pré-rédiger par l'IA" pour générer automatiquement)`}
+              rows={10}
+              className="w-full px-3.5 py-2.5 rounded-xl text-[12px] outline-none resize-y transition-all leading-relaxed font-mono"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.70)" }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
+            />
+            <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.20)" }}>
+              L&apos;IA remplira chaque [placeholder] avec les informations extraites de l&apos;audio. Laissez vide pour un format libre.
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <div
-          className="flex items-center justify-end gap-2 px-6 py-4"
+          className="flex items-center justify-end gap-2 px-6 py-4 shrink-0"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
         >
           <button
@@ -152,7 +238,7 @@ function TemplateDialog({
             Annuler
           </button>
           <button
-            onClick={() => valid && onSave({ label: label.trim(), prompt: prompt.trim() })}
+            onClick={() => valid && onSave({ label: label.trim(), prompt: prompt.trim(), category, outputTemplate: outputTemplate.trim() || undefined })}
             disabled={!valid}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12px] font-semibold transition-all"
             style={{
@@ -279,14 +365,16 @@ export default function AudioPage() {
     setDialogOpen(true);
   };
 
-  const handleSave = ({ label, prompt }: { label: string; prompt: string }) => {
+  const handleSave = ({ label, prompt, category, outputTemplate }: { label: string; prompt: string; category: TemplateCategory; outputTemplate?: string }) => {
     if (editingTemplate) {
-      updateTemplate(editingTemplate.id, { label, prompt });
+      updateTemplate(editingTemplate.id, { label, prompt, category, outputTemplate });
     } else {
       addTemplate({
         id: crypto.randomUUID(),
         label,
         prompt,
+        category,
+        outputTemplate,
         isDefault: false,
         createdAt: new Date().toISOString(),
       });
@@ -296,7 +384,7 @@ export default function AudioPage() {
 
   const handleDeleteTemplate = (id: string) => {
     removeTemplate(id);
-    if (selectedTemplateId === id) setSelectedTemplateId("transcription");
+    if (selectedTemplateId === id) setSelectedTemplateId("reunion-commerciale");
   };
 
   /* ── Tabs config ────────────────────────────────────────── */

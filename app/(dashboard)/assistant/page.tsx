@@ -52,7 +52,7 @@ export default function AssistantPage() {
                 className="text-[15px] font-semibold leading-tight"
                 style={{ color: "rgba(255,255,255,0.88)" }}
               >
-                Assistant GEDOS
+                Assistant Documents Office Solutions
               </h1>
               <p
                 className="text-[11px]"

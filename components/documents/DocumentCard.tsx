@@ -143,26 +143,53 @@ export function DocumentCard({ doc }: { doc: Document }) {
         </div>
       </div>
 
-      {/* Footer: status + tag */}
+      {/* Footer: status + amount + type */}
       <div
         className="flex items-center justify-between pt-2.5 relative z-10"
         style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
       >
-        <div
-          className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-          style={{ background: status.bg, color: status.color }}
-        >
-          <StatusIcon size={9} />
-          {status.label}
+        <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+            style={{ background: status.bg, color: status.color }}
+          >
+            <StatusIcon size={9} />
+            {status.label}
+          </div>
+          {doc.extractedData?.type && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+              style={{
+                background:
+                  doc.extractedData.type === "facture_fournisseur" ? "rgba(239,68,68,0.10)" :
+                  doc.extractedData.type === "facture_client" ? "rgba(16,185,129,0.10)" :
+                  doc.extractedData.type === "compte_rendu" ? "rgba(139,92,246,0.10)" :
+                  "rgba(255,255,255,0.05)",
+                color:
+                  doc.extractedData.type === "facture_fournisseur" ? "#f87171" :
+                  doc.extractedData.type === "facture_client" ? "#34d399" :
+                  doc.extractedData.type === "compte_rendu" ? "#a78bfa" :
+                  "rgba(255,255,255,0.4)",
+              }}
+            >
+              {doc.extractedData.type === "facture_fournisseur" ? "Fourn." :
+               doc.extractedData.type === "facture_client" ? "Client" :
+               doc.extractedData.type === "compte_rendu" ? "CR" : "Admin"}
+            </span>
+          )}
         </div>
-        {doc.tags && doc.tags.length > 0 && (
+        {doc.extractedData?.montantTTC != null ? (
+          <span className="text-[11px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>
+            {doc.extractedData.montantTTC.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €
+          </span>
+        ) : doc.tags && doc.tags.length > 0 ? (
           <span
             className="text-[10px] font-medium truncate max-w-[80px]"
             style={{ color: "rgba(255,255,255,0.22)" }}
           >
             #{doc.tags[0]}
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );

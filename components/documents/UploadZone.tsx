@@ -58,12 +58,20 @@ export function UploadZone({ onComplete }: { onComplete: () => void }) {
         body: JSON.stringify({ data: fileContent.data, mimeType: file.type, fileName: file.name }),
       });
 
-      const extraction = ocrRes.ok ? await ocrRes.json() : { text: "", tags: [] };
+      const extraction = ocrRes.ok
+        ? await ocrRes.json()
+        : { text: "", tags: [], extractedData: {} };
+
+      // Build a richer document name from extracted data when possible
+      const ext = extraction.extractedData || {};
+      const smartName = ext.type && (ext.fournisseur || ext.client)
+        ? `${ext.type === "facture_fournisseur" ? "Facture" : ext.type === "facture_client" ? "Facture client" : ext.type === "devis" ? "Devis" : ext.type === "contrat" ? "Contrat" : ext.type === "compte_rendu" ? "CR Réunion" : file.name.replace(/\.[^.]+$/, "")} — ${ext.fournisseur || ext.client || ""}.pdf`
+        : file.name;
 
       const doc: Document = {
         id: Math.random().toString(36).substring(7),
         tenantId: "t1",
-        name: file.name,
+        name: smartName,
         originalName: file.name,
         mimeType: file.type || "application/octet-stream",
         sizeBytes: file.size,
@@ -72,7 +80,7 @@ export function UploadZone({ onComplete }: { onComplete: () => void }) {
         version: 1,
         ocrStatus: "completed",
         ocrText: extraction.text,
-        extractedData: {},
+        extractedData: extraction.extractedData || {},
         tags: extraction.tags || [],
         metadata: {},
         createdBy: "u1",

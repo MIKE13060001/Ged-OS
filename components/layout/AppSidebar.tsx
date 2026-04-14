@@ -114,10 +114,8 @@ export function AppSidebar() {
   const { user, signOut, isConfigured } = useAuth();
   const { role, isAdmin } = useRole();
 
-  const displayName = user?.user_metadata?.full_name
-    ?? user?.email?.split("@")[0]
-    ?? "G. Architect";
-  const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  const displayName = "Valentin";
+  const initials = "V";
   const roleColors = ROLE_COLORS[role];
 
   async function handleSignOut() {
@@ -151,28 +149,14 @@ export function AppSidebar() {
           )}
           style={{ borderColor: "rgba(255,255,255,0.05)" }}
         >
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{
-              background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
-              boxShadow: "0 0 0 1px rgba(59,130,246,0.4), 0 4px 12px rgba(59,130,246,0.25)",
-            }}
-          >
-            <Zap size={13} className="text-white" fill="white" />
-          </div>
-
-          {!collapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-white leading-none tracking-tight">GEDOS</p>
-                <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(99,102,241,0.7)" }}>
-                  Plan Enterprise
-                </p>
-              </div>
-              <button className="w-5 h-5 flex items-center justify-center rounded opacity-40 hover:opacity-70 transition-opacity shrink-0">
-                <ChevronsUpDown size={11} className="text-white" />
-              </button>
-            </>
+          {collapsed ? (
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-white">
+              <img src="/dos-logo.png" alt="Documents Office Solutions" className="w-full h-full object-contain p-0.5" />
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 flex items-center">
+              <img src="/dos-logo.png" alt="Documents Office Solutions" className="h-8 w-auto object-contain" />
+            </div>
           )}
         </div>
 
