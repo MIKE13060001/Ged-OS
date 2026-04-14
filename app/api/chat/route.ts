@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { GeminiService } from "@/lib/ai/gemini";
 import { generateExcel, generateDocx } from "@/lib/fileGenerator";
 
-const FILE_KEYWORDS = [
-  "crée", "créé", "créer", "génère", "génèrer", "générer", "exporte", "exporter",
-  "fichier", "excel", "xlsx", "word", "docx", "tableau", "rapport",
-  "create", "generate", "export", "file", "spreadsheet",
-];
-
-const CHART_KEYWORDS = ["graphique", "chart", "camembert", "diagramme", "courbe", "histogramme", "visualisation", "graph"];
-
+/**
+ * Only trigger file generation when the user EXPLICITLY asks for an Excel/Word file.
+ * Generic words like "génère", "tableau", "rapport" alone are NOT enough.
+ */
 function mightBeFileRequest(message: string): boolean {
   const lower = message.toLowerCase();
-  // If the user asks for a chart/graph, don't intercept as file generation
-  if (CHART_KEYWORDS.some((kw) => lower.includes(kw))) return false;
-  return FILE_KEYWORDS.some((kw) => lower.includes(kw));
+  // Must mention a file format explicitly
+  const hasFileFormat = ["excel", "xlsx", ".xlsx", "fichier excel", "tableau excel", "export excel",
+    "word", "docx", ".docx", "fichier word"].some(kw => lower.includes(kw));
+  return hasFileFormat;
 }
 
 const EXCEL_TRIGGER = "##EXCEL_DATA##";

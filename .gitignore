@@ -29,3 +29,4 @@ out/
 tsconfig.tsbuildinfo
 .gitnexus
 .claude/worktrees/
+.vercel
